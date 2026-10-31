@@ -23,6 +23,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
   const state = {
     dark: false, automatic: true, absentAutomatic: false, brew: true,
     apps: new Set<string>(), casks: new Set<string>(),
+    autoSetupRemote: undefined as boolean | undefined,
     installFailure: false, ineffectiveCask: false,
     ineffectiveAppearance: false, deniedSpotlight: false, invalidDefaults: false, rootAlias: false
   }
@@ -33,6 +34,19 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
     run: command => Effect.sync(() => {
       commands.push(command)
       const args = command.args
+      if (command.file === "git") {
+        assert.equal(args[0], "config")
+        assert.equal(args[1], "--global")
+        assert.equal(args[2], "--type=bool")
+        assert.equal(args[4], "push.autoSetupRemote")
+        if (args[3] === "--get") return state.autoSetupRemote === undefined ? result("", 1) : result(String(state.autoSetupRemote))
+        assert.equal(args[3], "--replace-all")
+        state.autoSetupRemote = args[5] === "true"; writes.push("git"); return result()
+      }
+      if (command.file === "pgrep") {
+        assert.deepEqual(args, ["-x", "VLC"])
+        return result("", 1)
+      }
       if (command.file === "osascript") {
         if (args[0] === "-") {
           assert.match(command.input ?? "", /on run folderPaths/u)
@@ -89,6 +103,8 @@ test("fresh application converges; repeated application preserves installations 
   assert.equal(f.state.dark, true)
   assert.equal(f.state.automatic, false)
   assert.equal(f.state.brew, true)
+  assert.equal(f.state.autoSetupRemote, true)
+  assert.equal(f.files.get(f.config.vlc.configPath), "[core]\nrate=2.35\nsub-language=en,any\n")
   assert.deepEqual([...f.state.apps], f.config.casks.map(item => join(f.config.appDirectory, item.app, item.executable)))
   assert.deepEqual([...f.state.casks], f.config.casks.map(item => item.name))
   assert.deepEqual([...f.excluded], f.config.spotlightExcludedFolders)

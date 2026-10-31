@@ -8,6 +8,8 @@ export interface Configuration {
   miseProfile: string
   appDirectory: string
   casks: ReadonlyArray<Cask>
+  git: { autoSetupRemote: boolean }
+  vlc: { configPath: string; playbackRate: number; subtitleLanguage: string }
   spotlightExcludedFolders: ReadonlyArray<string>
 }
 
@@ -24,6 +26,12 @@ export function configuration(home: string, env: NodeJS.ProcessEnv, profile: Pro
       { name: "vlc", app: "VLC.app", executable: "Contents/MacOS/VLC" },
       { name: "google-chrome", app: "Google Chrome.app", executable: "Contents/MacOS/Google Chrome" }
     ],
+    git: { autoSetupRemote: true },
+    vlc: {
+      configPath: join(home, "Library/Preferences/org.videolan.vlc/vlcrc"),
+      playbackRate: 2.35,
+      subtitleLanguage: "en,any"
+    },
     spotlightExcludedFolders: [join(home, "Developer"), "/opt/homebrew"]
   }
   const profiles: Record<Exclude<Profile, "shared">, Partial<Configuration>> = {
@@ -41,9 +49,12 @@ export function configuration(home: string, env: NodeJS.ProcessEnv, profile: Pro
 
 export function validateConfiguration(config: Configuration): void {
   if (!["dark", "light"].includes(config.appearance)) throw new Error("Appearance must be dark or light.")
-  for (const path of [config.homebrewProfile, config.miseProfile, config.appDirectory]) {
+  for (const path of [config.homebrewProfile, config.miseProfile, config.appDirectory, config.vlc.configPath]) {
     if (!isAbsolute(path)) throw new Error(`Configured paths must be absolute: ${path}`)
   }
+  if (typeof config.git.autoSetupRemote !== "boolean") throw new Error("Git autoSetupRemote must be a boolean.")
+  if (!Number.isFinite(config.vlc.playbackRate) || config.vlc.playbackRate <= 0) throw new Error("VLC playback rate must be positive and finite.")
+  if (!/^[a-z]+(?:,[a-z]+)*$/iu.test(config.vlc.subtitleLanguage)) throw new Error("VLC subtitle languages must be comma-separated language names or codes.")
   for (const path of config.spotlightExcludedFolders) {
     if (!isAbsolute(path) || /^\/+$/u.test(path)) throw new Error(`Invalid Spotlight folder: ${path}`)
   }

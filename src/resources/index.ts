@@ -6,6 +6,8 @@ import type { Observation, Resource } from "../runner.ts"
 import { verifyObservation } from "../runner.ts"
 import { BootstrapError, checked } from "../system.ts"
 import type { System } from "../system.ts"
+import { gitSettings } from "./git.ts"
+import { vlcSettings } from "./vlc.ts"
 
 const spotlightScript = readFileSync(new URL("./spotlight.applescript", import.meta.url), "utf8")
 const quote = (text: string) => /^[a-zA-Z0-9_/.+-]+$/u.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`
@@ -177,7 +179,9 @@ export function resources(system: System, config: Configuration, mise: string): 
     })),
     profileEntry(system, "mise", config.miseProfile, () => Effect.succeed(`eval "$(${quote(mise)} activate zsh)"`)),
     zshCompletions(system, config.miseProfile, mise),
+    gitSettings(system, config.git.autoSetupRemote),
     ...config.casks.map(item => cask(system, config, item)),
+    vlcSettings(system, config.vlc),
     spotlight(system, config.spotlightExcludedFolders)
   ]
 }
