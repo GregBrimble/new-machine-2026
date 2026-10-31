@@ -18,10 +18,11 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Check Bash syntax
+      - name: Check script syntax
         run: |
           for script in bootstrap.sh vm/run.sh vm/guest.command; do
             /bin/bash -n "$script"
           done
+          /usr/bin/osacompile -o "$RUNNER_TEMP/spotlight.scpt" src/resources/spotlight.applescript
       - run: npm run check
       - run: npm test
