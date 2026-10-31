@@ -12,6 +12,8 @@ brew install openai/tools/tart
 npm run test:vm
 # Test uncommitted checkout contents instead of the public curl entry point:
 npm run test:vm -- --local
+# Behind a TLS-inspecting proxy, provide its public CA certificates:
+npm run test:vm -- --ca-bundle /path/to/corporate-ca.pem
 ```
 
 The driver itself needs only Bash and Tart, so `/bin/bash vm/run.sh` works without
@@ -69,6 +71,11 @@ with `main` first. Local mode snapshots current source, including uncommitted
 changes, and runs `bootstrap.sh` from that snapshot. No host home directory,
 credentials, or SSH agent are shared. Test source is mounted read-only; only the
 artifacts directory is writable by the guest.
+With `--ca-bundle`, only the specified PEM certificate file is copied into that
+read-only input share; files containing private keys are rejected. The guest
+combines it with macOS's public roots and configures curl, Git, Ruby/OpenSSL,
+mise, and Node through the test process's environment, including after restart.
+It does not install the CA into either machine's Keychain or disable TLS checks.
 
 The VM is stopped and deleted after success. On failure or interruption it is
 stopped and retained with its name printed. Resume it for inspection with

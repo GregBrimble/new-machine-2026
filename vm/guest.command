@@ -16,6 +16,16 @@ status() { printf '%s\n' "$1" > "$results/status.next"; mv "$results/status.next
 trap 'result=$?; if [[ "$result" != 0 ]]; then status failed; fi' EXIT
 exec > >(tee "$results/guest-$stage.log") 2>&1
 
+if [[ -f "$input/network-ca.pem" ]]; then
+  # Keep the guest's public roots and add only the explicitly supplied test CA.
+  bundle="$HOME/new-machine-vm-ca-bundle.pem"
+  /usr/bin/security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > "$bundle"
+  cat "$input/network-ca.pem" >> "$bundle"
+  export CURL_CA_BUNDLE="$bundle" SSL_CERT_FILE="$bundle" GIT_SSL_CAINFO="$bundle"
+  export MISE_EXTRA_CA_CERTS="$input/network-ca.pem" NODE_EXTRA_CA_CERTS="$input/network-ca.pem"
+  echo 'Using the supplied network CA for this VM test; TLS verification remains enabled.'
+fi
+
 if [[ "$stage" == first ]]; then
   [[ ! -e "$workspace" ]] || { echo 'Use a fresh VM clone for each test.' >&2; exit 1; }
   for tool in brew mise node; do

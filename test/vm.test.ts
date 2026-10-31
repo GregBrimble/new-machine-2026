@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { spawnSync } from "node:child_process"
+import { execFileSync, spawnSync } from "node:child_process"
 import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -119,5 +119,39 @@ test("a cached image still requires room for the clone and installations", () =>
     assert.equal(result.status, 1)
     assert.match(result.stderr, /At least 30 GiB/u)
     assert.equal(f.commands().some(line => line.startsWith("clone ")), false)
+  } finally { f.dispose() }
+})
+
+test("an explicitly supplied public CA bundle is copied into the read-only guest input", () => {
+  const f = fixture()
+  try {
+    const certificate = join(f.root, "network-ca.pem")
+    execFileSync("/usr/bin/openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes",
+      "-subj", "/CN=VM Test CA", "-days", "1", "-keyout", join(f.root, "test-key.pem"), "-out", certificate],
+    { stdio: "ignore", timeout: 10_000 })
+    const result = f.run({}, ["--local", "--ca-bundle", certificate])
+    assert.equal(result.status, 0, result.stderr)
+    const results = /Results: (.+)/u.exec(result.stdout)![1]
+    assert.equal(readFileSync(join(results, "../input/network-ca.pem"), "utf8"), readFileSync(certificate, "utf8"))
+  } finally { f.dispose() }
+})
+
+test("unreadable, invalid, and private-key CA inputs fail before starting a VM", () => {
+  const f = fixture()
+  try {
+    const invalid = join(f.root, "invalid.pem")
+    writeFileSync(invalid, "not a certificate\n")
+    const privateKey = join(f.root, "private.pem")
+    writeFileSync(privateKey, "-----BEGIN PRIVATE KEY-----\nfixture\n-----END PRIVATE KEY-----\n")
+    for (const [path, message] of [
+      [join(f.root, "missing.pem"), /readable PEM/u],
+      [invalid, /PEM certificates/u],
+      [privateKey, /must not contain private keys/u]
+    ] as const) {
+      const result = f.run({}, ["--local", "--ca-bundle", path])
+      assert.equal(result.status, 1)
+      assert.match(result.stderr, message)
+      assert.equal(result.stdout, "")
+    }
   } finally { f.dispose() }
 })

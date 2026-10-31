@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: /bin/bash vm/run.sh [--local] [--image <Tart image>]
+Usage: /bin/bash vm/run.sh [--local] [--image <Tart image>] [--ca-bundle <PEM file>]
 
 Creates a disposable, visible macOS Tahoe VM. By default it tests the published
 curl entry point; --local tests a snapshot of this checkout instead.
@@ -12,19 +12,27 @@ In the VM, open /Volumes/My Shared Files/bootstrap-input/start.command.
 Approve the normal macOS privacy prompts there. The driver restarts the VM to
 check login startup, saves logs, and deletes the test VM only after success.
 Requires Tart, Apple Silicon, and 60 GiB free (30 GiB with a cached image).
+For an inspecting proxy, --ca-bundle shares public CA certificates with the guest.
 EOF
 }
 fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 mode=published
 image=ghcr.io/cirruslabs/macos-tahoe-vanilla:latest
+ca_bundle=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --local) mode=local; shift ;;
     --image) [[ $# -ge 2 && -n "$2" ]] || fail '--image needs a value'; image=$2; shift 2 ;;
+    --ca-bundle) [[ $# -ge 2 && -n "$2" ]] || fail '--ca-bundle needs a value'; ca_bundle=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) fail "Unknown argument: $1" ;;
   esac
 done
+if [[ -n "$ca_bundle" ]]; then
+  [[ -f "$ca_bundle" && -r "$ca_bundle" ]] || fail 'CA bundle must be a readable PEM file.'
+  case "$(cat "$ca_bundle")" in *'PRIVATE KEY'*) fail 'CA bundle must not contain private keys.' ;; esac
+  /usr/bin/openssl x509 -in "$ca_bundle" -noout >/dev/null 2>&1 || fail 'CA bundle must contain PEM certificates.'
+fi
 [[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]] || fail 'Requires an Apple Silicon Mac.'
 command -v tart >/dev/null || fail 'Install Tart first: brew install openai/tools/tart'
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -38,6 +46,7 @@ fi
 
 artifacts="$(mktemp -d "${TMPDIR:-/tmp}/new-machine-vm.XXXXXX")"
 mkdir "$artifacts/input" "$artifacts/results"
+if [[ -n "$ca_bundle" ]]; then cp "$ca_bundle" "$artifacts/input/network-ca.pem"; fi
 vm="new-machine-test-$(uuidgen | tr '[:upper:]' '[:lower:]')"
 created=false
 vm_pid=""
