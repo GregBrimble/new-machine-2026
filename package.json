@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24.22.2 <25"
+    "node": ">=26.13.0 <27"
   },
   "scripts": {
     "start": "node src/main.ts",
@@ -14,7 +14,7 @@
     "effect": "4.1.1"
   },
   "devDependencies": {
-    "@types/node": "24.19.2",
+    "@types/node": "26.6.6",
     "typescript": "7.0.2"
   }
 }

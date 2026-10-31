@@ -27,8 +27,9 @@ The launcher uses tools shipped with macOS. It:
    `brew reinstall mise` if its executable or zsh completion is missing. The
    runner uses Homebrew's stable `opt/mise/bin/mise` path, including when another
    mise is on PATH. Homebrew owns mise and its bundled completions.
-4. Uses `mise exec` to install/select **Node.js 24.22.2**, pinned in
-   `.node-version`. This version runs the TypeScript source directly.
+4. Uses `mise exec` to install/select **Node.js 26.13.0**, pinned in
+   `.node-version`. Its bundled npm is **11.20.0**; no separate npm installation
+   is needed. This version runs the TypeScript source directly.
 5. Installs locked production dependencies with `npm ci --omit=dev
    --ignore-scripts`, then runs the Effect configurator.
 
