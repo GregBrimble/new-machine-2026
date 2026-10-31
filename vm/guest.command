@@ -106,6 +106,8 @@ EOF
   /usr/bin/plutil -insert ProgramArguments -json '["/usr/bin/open","-a","Terminal"]' "$continuation"
   /usr/bin/plutil -insert ProgramArguments.3 -string "$workspace/after-login.command" "$continuation"
   /usr/bin/plutil -insert RunAtLoad -bool true "$continuation"
+  # The host can stop the VM as soon as it sees the shared status file.
+  /bin/sync
   status reboot-required
   echo 'Waiting for the host to restart this VM. The test continues in Terminal after login.'
 else
