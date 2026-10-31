@@ -1,0 +1,21 @@
+src/resources/index.ts
+  s_790125743e562e::t_036c785a19aac5 11-12,163-164
+src/resources/trash.ts
+  s_790125743e562e::t_cf6e99bbf4019e 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e3a230079b3b034a3364a73192e1e37cd2ac4b03",
+  "prompts": {},
+  "sessions": {
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
