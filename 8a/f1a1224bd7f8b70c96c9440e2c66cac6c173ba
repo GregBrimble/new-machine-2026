@@ -1,0 +1,23 @@
+README.md
+  s_790125743e562e::t_80224cdfa0017e 55
+src/config.ts
+  s_790125743e562e::t_852670cfa688b3 21-26
+test/resources.test.ts
+  s_790125743e562e::t_3d816052856627 24-25,58-61,66-70,75,92-93,120,122,129,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8af1a1224bd7f8b70c96c9440e2c66cac6c173ba",
+  "prompts": {},
+  "sessions": {
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
