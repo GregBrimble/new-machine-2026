@@ -1,0 +1,25 @@
+.node-version
+  s_790125743e562e::t_6b048fb127f596 1
+README.md
+  s_790125743e562e::t_26fd85468d1ade 30-32
+package-lock.json
+  s_790125743e562e::t_56b2a8588036e4 12,16,20-22,26,411-413
+package.json
+  s_790125743e562e::t_b31eef270f9868 6,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c6809b7f53615d04a2c4bcb6672d5c1138b9f655",
+  "prompts": {},
+  "sessions": {
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
