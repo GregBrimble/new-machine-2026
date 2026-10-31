@@ -1,0 +1,31 @@
+README.md
+  s_790125743e562e::t_1552e3286ffbee 3-4,6-8,11-13,16-18,20,22-57,59-73,76-78,81-108,111-113,116-125
+bootstrap.sh
+  s_790125743e562e::t_41d7e6a589e612 2,5-7,10-13,17-26,28-32,35-37,40-42,44-87,90
+package-lock.json
+  s_790125743e562e::t_3b035a9a6f1f66 1-418
+package.json
+  s_790125743e562e::t_f5cd118fbc5575 1-20
+src/resources/spotlight.applescript
+  s_790125743e562e::t_4be4681135e778 1-90
+test/bootstrap.test.ts
+  s_790125743e562e::t_dc93828d99d233 1-150
+test/system.test.ts
+  s_790125743e562e::t_7af4967597b611 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8033e8a347bdb76bc5dcd6f42cb80a17f30f6ce0",
+  "prompts": {},
+  "sessions": {
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
