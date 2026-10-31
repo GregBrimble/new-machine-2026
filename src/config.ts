@@ -5,6 +5,7 @@ export interface Configuration {
   appearance: "dark" | "light"
   homebrewProfile: string
   miseProfile: string
+  developerDirectory: string
   casks: ReadonlyArray<string>
   git: { autoSetupRemote: boolean }
   vlc: { configPath: string; playbackRate: number; subtitleLanguage: string }
@@ -19,6 +20,7 @@ export function configuration(home: string, zshDirectory: string, profile: Profi
     appearance: "dark",
     homebrewProfile: join(zshDirectory, ".zprofile"),
     miseProfile: join(zshDirectory, ".zshrc"),
+    developerDirectory: join(home, "Developer"),
     casks: ["ghostty", "spotify", "vlc", "google-chrome"],
     git: { autoSetupRemote: true },
     vlc: {
@@ -52,7 +54,7 @@ export function configuration(home: string, zshDirectory: string, profile: Profi
 
 export function validateConfiguration(config: Configuration): void {
   if (!["dark", "light"].includes(config.appearance)) throw new Error("Appearance must be dark or light.")
-  for (const path of [config.homebrewProfile, config.miseProfile, config.vlc.configPath,
+  for (const path of [config.homebrewProfile, config.miseProfile, config.developerDirectory, config.vlc.configPath,
     config.downloadsCleanup.directory, config.downloadsCleanup.helperPath, config.downloadsCleanup.launchAgentPath, config.downloadsCleanup.logPath]) {
     if (!isAbsolute(path)) throw new Error(`Configured paths must be absolute: ${path}`)
   }

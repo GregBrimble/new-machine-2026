@@ -108,6 +108,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
       throw new Error(`Unexpected command: ${command.file} ${args.join(" ")}`)
     }),
     executable: path => Effect.sync(() => { reads++; return path === brew ? state.brew : executables.has(path) }),
+    directory: path => Effect.sync(() => { reads++; return directories.has(path) }),
     readText: path => Effect.sync(() => { reads++; return files.get(path) }),
     writeText: (path, text) => Effect.sync(() => { files.set(path, text); writes.push(`profile:${path}`) }),
     mkdir: path => Effect.sync(() => { if (!directories.has(path)) { directories.add(path); writes.push(`mkdir:${path}`) } }),
@@ -126,6 +127,7 @@ test("fresh application converges; repeated application preserves installations 
   assert.equal(f.state.brew, true)
   assert.equal(f.state.autoSetupRemote, true)
   assert.equal(f.state.removeOldTrashItems, true)
+  for (const name of ["repos", "worktrees", "tries"]) assert.ok(f.directories.has(join(f.config.developerDirectory, name)))
   assert.equal(f.files.get(f.config.vlc.configPath), "[core]\nrate=2.35\nsub-language=en,any\n")
   assert.deepEqual([...f.state.casks], f.config.casks)
   assert.equal(f.commands.filter(c => c.args[0] === "bundle" && c.args[1] === "install").length, 1)
@@ -264,7 +266,7 @@ test("empty exclusion list skips Spotlight automation; existing exclusions are p
   await f.run()
   assert.deepEqual([...f.excluded], ["/existing exclusion"])
   assert.equal(f.commands.some(c => c.args[0] === "-"), false)
-  assert.equal(f.directories.has("/Users/test person/Developer"), false)
+  assert.equal(f.directories.has("/opt/homebrew"), false)
 })
 
 test("a configured folder resolving to filesystem root fails before exclusion", async () => {

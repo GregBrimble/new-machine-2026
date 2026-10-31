@@ -10,6 +10,7 @@ import { gitSettings } from "./git.ts"
 import { vlcSettings } from "./vlc.ts"
 import { downloadsCleanup } from "./downloads.ts"
 import { trashSettings } from "./trash.ts"
+import { developerDirectories } from "./developer.ts"
 
 const spotlightScript = readFileSync(new URL("./spotlight.applescript", import.meta.url), "utf8")
 const quote = (text: string) => /^[a-zA-Z0-9_/.+-]+$/u.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`
@@ -154,6 +155,7 @@ export function resources(system: System, config: Configuration, { brew, mise }:
   return [
     homebrew(system, brew),
     appearance(system, config.appearance),
+    developerDirectories(system, config.developerDirectory),
     profileEntry(system, "Homebrew", config.homebrewProfile, `eval "$(${quote(brew)} shellenv)"`),
     profileEntry(system, "mise", config.miseProfile, `eval "$(${quote(mise)} activate zsh)"`),
     zshCompletions(system, config.miseProfile, mise),

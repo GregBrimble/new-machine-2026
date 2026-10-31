@@ -17,6 +17,7 @@ export interface CommandResult { code: number; stdout: string; stderr: string }
 export interface System {
   run(command: Command): Effect.Effect<CommandResult, BootstrapError>
   executable(path: string): Effect.Effect<boolean, BootstrapError>
+  directory(path: string): Effect.Effect<boolean, BootstrapError>
   readText(path: string): Effect.Effect<string | undefined, BootstrapError>
   writeText(path: string, text: string): Effect.Effect<void, BootstrapError>
   mkdir(path: string): Effect.Effect<void, BootstrapError>
@@ -63,6 +64,13 @@ export function liveSystem(env: NodeJS.ProcessEnv): System {
       try { await access(path, constants.X_OK); return (await stat(path)).isFile() }
       catch (error) {
         if (["ENOENT", "ENOTDIR", "EACCES"].includes((error as NodeJS.ErrnoException).code ?? "")) return false
+        throw error
+      }
+    }),
+    directory: path => io(`Check directory ${path}`, async () => {
+      try { return (await stat(path)).isDirectory() }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
         throw error
       }
     }),

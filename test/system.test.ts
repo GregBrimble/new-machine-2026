@@ -41,8 +41,11 @@ test("filesystem adapter creates parents and distinguishes missing paths from ot
   try {
     const file = join(root, "parent with spaces", "profile")
     assert.equal(await Effect.runPromise(system.readText(file)), undefined)
+    assert.equal(await Effect.runPromise(system.directory(join(root, "parent with spaces"))), false)
     await Effect.runPromise(system.writeText(file, "contents\n"))
     assert.equal(await readFile(file, "utf8"), "contents\n")
+    assert.equal(await Effect.runPromise(system.directory(join(root, "parent with spaces"))), true)
+    assert.equal(await Effect.runPromise(system.directory(file)), false)
     assert.equal(await Effect.runPromise(system.executable(root)), false)
     assert.equal(await Effect.runPromise(system.executable(process.execPath)), true)
     await assert.rejects(Effect.runPromise(system.readText(root)), /Read/u)

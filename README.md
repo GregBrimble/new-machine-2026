@@ -53,6 +53,7 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 - A Homebrew `shellenv` entry in zsh's `.zprofile`.
 - mise activation in zsh's `.zshrc`.
 - mise zsh completions supplied by Homebrew, with zsh completion initialization.
+- A `~/Developer` layout with `repos`, `worktrees`, and `tries` directories.
 - Ghostty, Spotify, VLC, and Google Chrome installed through Homebrew Bundle.
 - Global Git `push.autoSetupRemote=true` so a branch's first push sets its upstream.
 - VLC playback at 2.35×, preferring English subtitles and falling back to any available track.
@@ -96,6 +97,59 @@ configuration. Open a new login terminal after applying shell setup. The Node
 pin is selected explicitly for the runner through mise; other projects can
 select their own versions. Downloads cleanup runs as macOS background activity;
 the other settings are reconciled only when you invoke the initializer.
+
+## Developer layout
+
+The initializer creates three directories under `developerDirectory`, defaulting
+to `~/Developer`. Use this convention for their contents:
+
+```text
+~/Developer/
+  repos/
+    github.com/
+      GregBrimble/my-repo/          # primary checkout of your fork or repo
+      some-org/my-repo/             # optional separate upstream checkout
+    gitlab.example.com/group/repo/  # other hosts and nested groups work too
+  worktrees/
+    my-feature/                    # one task, possibly spanning several repos
+      github.com/
+        GregBrimble/my-repo/
+        some-org/another-repo/
+  tries/
+    2026-10-31-some-experiment/
+```
+
+Primary checkouts are ordinary Git clones. Including the host and owner avoids
+collisions between forks and between hosting services. Usually one clone with
+`origin` pointing to your fork and `upstream` pointing to the original is enough;
+keep both checkouts only when you want separate local repositories. For example:
+
+```sh
+git clone git@github.com:GregBrimble/my-repo.git \
+  ~/Developer/repos/github.com/GregBrimble/my-repo
+git -C ~/Developer/repos/github.com/GregBrimble/my-repo \
+  remote add upstream https://github.com/some-org/my-repo.git
+```
+
+Worktrees are grouped by task first, then by the primary clone's host/owner/repo
+identity. This lets a task contain worktrees from multiple repositories:
+
+```sh
+git -C ~/Developer/repos/github.com/GregBrimble/my-repo \
+  worktree add -b my-feature \
+  ~/Developer/worktrees/my-feature/github.com/GregBrimble/my-repo
+```
+
+Use `git worktree remove <path>` when finished; worktrees share Git metadata with
+their primary clone. See [Git's worktree documentation](https://git-scm.com/docs/git-worktree).
+The initializer creates the three parent directories and preserves their
+contents. It does not move existing checkouts or create example repositories.
+
+[`tobi/try`](https://github.com/tobi/try) is an optional browser and creator for
+scratch experiments. It is not installed by this configuration. If you install
+it, point its shell integration at `~/Developer/tries`. Its worktree command
+creates detached checkouts in that experiments directory; use the task layout
+above for work spanning repositories.
 
 ## Downloads cleanup
 
