@@ -31,7 +31,7 @@ export function liveSystem(env: NodeJS.ProcessEnv): System {
     run: command => Effect.tryPromise({
       try: signal => new Promise<CommandResult>((resolve, reject) => {
         let terminal: number | undefined
-        if (command.interactive) {
+        if (command.interactive && command.input === undefined) {
           try { terminal = openSync("/dev/tty", "r") } catch { /* Headless installers use inherited stdin. */ }
         }
         const release = () => {
@@ -41,7 +41,7 @@ export function liveSystem(env: NodeJS.ProcessEnv): System {
           const child = spawn(command.file, [...command.args], {
             env, signal,
             stdio: command.interactive
-              ? [terminal ?? "inherit", "inherit", "inherit"]
+              ? [command.input === undefined ? terminal ?? "inherit" : "pipe", "inherit", "inherit"]
               : [command.input === undefined ? "ignore" : "pipe", "pipe", "pipe"]
           })
           let stdout = "", stderr = ""

@@ -13,7 +13,6 @@ import type { Command, CommandResult, System } from "../src/system.ts"
 
 function fixture(mise = "/mise with 'quotes'/bin/mise") {
   const config = configuration("/Users/test person", {}, "shared")
-  config.appDirectory = "/Applications with spaces"
   const brew = "/prefix with spaces/bin/brew"
   const completion = join(dirname(dirname(mise)), "share/zsh/site-functions/_mise")
   const files = new Map<string, string>([[completion, "#compdef mise\nreturn 0\n"]])
@@ -22,9 +21,9 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
   const writes: string[] = [], commands: Command[] = [], logs: string[] = []
   const state = {
     dark: false, automatic: true, absentAutomatic: false, brew: true,
-    apps: new Set<string>(), casks: new Set<string>(),
+    casks: new Set<string>(),
     autoSetupRemote: undefined as boolean | undefined,
-    installFailure: false, ineffectiveCask: false,
+    installFailure: false, ineffectiveCask: false, checkFailure: false,
     ineffectiveAppearance: false, deniedSpotlight: false, invalidDefaults: false, rootAlias: false
   }
   let reads = 0
@@ -68,24 +67,27 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
       if (command.file === brew) {
         assert.equal(state.brew, true)
         if (args[0] === "--version") return result("Homebrew fixture")
-        assert.equal(args[1], "--cask")
-        const item = config.casks.find(cask => cask.name === args.at(-1))
-        assert.ok(item)
-        if (args[0] === "list") return result("", state.casks.has(item.name) ? 0 : 1)
-        assert.ok(args[0] === "install" || args[0] === "reinstall")
+        assert.equal(args[0], "bundle")
+        assert.deepEqual(args.slice(2), ["--no-upgrade", "--file=-"])
+        assert.equal(command.input, config.casks.map(name => `cask "${name}"\n`).join(""))
+        if (args[1] === "check") {
+          if (state.checkFailure) return result("", 2, "Bundle check failed")
+          return result("", config.casks.every(name => state.casks.has(name)) ? 0 : 1)
+        }
+        assert.equal(args[1], "install")
         assert.equal(command.interactive, true)
-        assert.equal(args[2], `--appdir=${config.appDirectory}`)
         if (state.installFailure) return result("", 1, "Cask installation failed")
         if (!state.ineffectiveCask) {
-          state.apps.add(join(config.appDirectory, item.app, item.executable))
-          state.casks.add(item.name)
-          writes.push(`${item.name}:${args[0]}`)
+          for (const name of config.casks) if (!state.casks.has(name)) {
+            state.casks.add(name)
+            writes.push(`cask:${name}`)
+          }
         }
         return result()
       }
       throw new Error(`Unexpected command: ${command.file} ${args.join(" ")}`)
     }),
-    executable: path => Effect.sync(() => { reads++; return path === brew ? state.brew : state.apps.has(path) }),
+    executable: path => Effect.sync(() => { reads++; return path === brew && state.brew }),
     readText: path => Effect.sync(() => { reads++; return files.get(path) }),
     writeText: (path, text) => Effect.sync(() => { files.set(path, text); writes.push(`profile:${path}`) }),
     mkdir: path => Effect.sync(() => { if (!directories.has(path)) { directories.add(path); writes.push(`mkdir:${path}`) } }),
@@ -104,8 +106,8 @@ test("fresh application converges; repeated application preserves installations 
   assert.equal(f.state.brew, true)
   assert.equal(f.state.autoSetupRemote, true)
   assert.equal(f.files.get(f.config.vlc.configPath), "[core]\nrate=2.35\nsub-language=en,any\n")
-  assert.deepEqual([...f.state.apps], f.config.casks.map(item => join(f.config.appDirectory, item.app, item.executable)))
-  assert.deepEqual([...f.state.casks], f.config.casks.map(item => item.name))
+  assert.deepEqual([...f.state.casks], f.config.casks)
+  assert.equal(f.commands.filter(c => c.args[0] === "bundle" && c.args[1] === "install").length, 1)
   assert.deepEqual([...f.excluded], f.config.spotlightExcludedFolders)
   assert.match(f.files.get(f.config.homebrewProfile)!, /^# existing content without a final newline\n/u)
   for (const profile of [f.config.homebrewProfile, f.config.miseProfile]) {
@@ -117,7 +119,7 @@ test("fresh application converges; repeated application preserves installations 
   await f.run()
   assert.deepEqual(f.writes, [])
   assert.deepEqual([...f.files], before)
-  assert.equal(f.commands.some(c => c.file === "curl" || c.args[0] === "install" || c.args[0] === "reinstall"), false)
+  assert.equal(f.commands.some(c => c.file === "curl" || c.args.includes("install")), false)
 })
 
 test("preview does not query system state; plan observes without applying changes or opening Search Privacy", async () => {
@@ -132,18 +134,36 @@ test("preview does not query system state; plan observes without applying change
   assert.ok(f.logs.some(line => line.includes("[unknown] spotlight")))
 })
 
-test("existing manually installed apps are kept", async () => {
+test("satisfied Bundle skips installation and leaves unrelated casks installed", async () => {
   const f = fixture()
-  for (const item of f.config.casks) f.state.apps.add(join(f.config.appDirectory, item.app, item.executable))
+  for (const name of [...f.config.casks, "another-app"]) f.state.casks.add(name)
   await f.run()
-  assert.equal(f.commands.some(c => c.args.includes("--cask")), false)
+  assert.equal(f.commands.some(c => c.args.includes("install")), false)
+  assert.ok(f.state.casks.has("another-app"))
 })
 
-test("missing app with an existing cask record is repaired with reinstall", async () => {
+test("partially satisfied Bundle installs missing casks and verifies the result", async () => {
   const f = fixture()
   f.state.casks.add("ghostty")
   await f.run()
-  assert.ok(f.writes.includes("ghostty:reinstall"))
+  assert.deepEqual([...f.state.casks], f.config.casks)
+  assert.equal(f.writes.includes("cask:ghostty"), false)
+  assert.ok(f.writes.includes("cask:spotify"))
+  const bundle = f.commands.filter(c => c.args[0] === "bundle")
+  assert.deepEqual(bundle.map(c => c.args[1]), ["check", "install", "check"])
+})
+
+test("empty cask list needs no installation", async () => {
+  const f = fixture(); f.config.casks = []
+  await f.run()
+  assert.equal(f.commands.some(c => c.args.includes("install")), false)
+})
+
+test("a Bundle check error stops installation", async () => {
+  const f = fixture(); f.state.checkFailure = true
+  await assert.rejects(f.run(), /Bundle check failed/u)
+  assert.equal(f.commands.some(c => c.args.includes("install")), false)
+  assert.equal(f.files.has(f.config.vlc.configPath), false)
 })
 
 test("an absent automatic appearance key means switching is disabled", async () => {
@@ -158,7 +178,7 @@ for (const failure of ["ineffectiveAppearance", "invalidDefaults"] as const) {
   test(`${failure} stops dependent changes`, async () => {
     const f = fixture(); f.state[failure] = true
     await assert.rejects(f.run())
-    assert.equal(f.state.apps.size, 0)
+    assert.equal(f.state.casks.size, 0)
     assert.equal(f.files.has(f.config.homebrewProfile), false)
     assert.equal(f.excluded.size, 0)
   })
@@ -204,7 +224,8 @@ for (const failure of ["installFailure", "ineffectiveCask"] as const) {
     const f = fixture(); f.state.brew = true; f.state[failure] = true
     await assert.rejects(f.run())
     assert.equal(f.excluded.size, 0)
-    assert.equal(f.logs.includes("[applied] cask:ghostty"), false)
+    assert.equal(f.logs.includes("[applied] casks"), false)
+    assert.equal(f.files.has(f.config.vlc.configPath), false)
   })
 }
 
@@ -245,5 +266,13 @@ test("profiles share the base and honor ZDOTDIR; invalid exclusions fail validat
     validateConfiguration(config)
     config.spotlightExcludedFolders = ["/"]
     assert.throws(() => validateConfiguration(config), /Spotlight/u)
+  }
+})
+
+test("cask names must be safe to embed in a Brewfile", () => {
+  const config = configuration("/Users/test", {}, "shared")
+  for (const name of ['ghostty"\nsystem "unexpected"', "#{1 + 1}", "--force", "vlc\n"]) {
+    config.casks = [name]
+    assert.throws(() => validateConfiguration(config), /Invalid cask/u)
   }
 })

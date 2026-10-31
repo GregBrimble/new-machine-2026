@@ -71,20 +71,18 @@ function profileEntry(system: System, id: string, path: string, line: string): R
   }
 }
 
-function cask(system: System, config: Configuration, item: Configuration["casks"][number], brew: string): Resource {
-  const executable = join(config.appDirectory, item.app, item.executable)
+function casks(system: System, names: Configuration["casks"], brew: string): Resource {
+  const input = names.map(name => `cask "${name}"\n`).join("")
+  const description = `Ensure Homebrew casks: ${names.join(", ") || "none"}`
   const inspect = () => Effect.gen(function* () {
-    return observation(yield* system.executable(executable), `Ensure ${item.app} in ${config.appDirectory}`)
+    const result = yield* system.run({ file: brew, args: ["bundle", "check", "--no-upgrade", "--file=-"], input })
+    if (result.code !== 0 && result.code !== 1) return yield* Effect.fail(new BootstrapError("Homebrew Bundle", result.stderr || `Check exited with status ${result.code}`))
+    return observation(result.code === 0, description)
   })
   return {
-    id: `cask:${item.name}`, description: `Ensure ${item.app} in ${config.appDirectory}`, inspect,
-    apply: () => Effect.gen(function* () {
-      const recorded = yield* system.run({ file: brew, args: ["list", "--cask", item.name] })
-      yield* checked(system, {
-        file: brew, args: [recorded.code === 0 ? "reinstall" : "install", "--cask", `--appdir=${config.appDirectory}`, item.name], interactive: true
-      })
-    }),
-    verify: () => verifyObservation(`cask:${item.name}`, inspect)
+    id: "casks", description, inspect,
+    apply: () => checked(system, { file: brew, args: ["bundle", "install", "--no-upgrade", "--file=-"], input, interactive: true }).pipe(Effect.asVoid),
+    verify: () => verifyObservation("casks", inspect)
   }
 }
 
@@ -158,7 +156,7 @@ export function resources(system: System, config: Configuration, { brew, mise }:
     profileEntry(system, "mise", config.miseProfile, `eval "$(${quote(mise)} activate zsh)"`),
     zshCompletions(system, config.miseProfile, mise),
     gitSettings(system, config.git.autoSetupRemote),
-    ...config.casks.map(item => cask(system, config, item, brew)),
+    casks(system, config.casks, brew),
     vlcSettings(system, config.vlc),
     spotlight(system, config.spotlightExcludedFolders)
   ]

@@ -53,7 +53,7 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 - A Homebrew `shellenv` entry in `${ZDOTDIR:-$HOME}/.zprofile`.
 - mise activation in `${ZDOTDIR:-$HOME}/.zshrc`.
 - mise zsh completions supplied by Homebrew, with zsh completion initialization.
-- Ghostty, Spotify, VLC, and Google Chrome installed in `/Applications` through Homebrew.
+- Ghostty, Spotify, VLC, and Google Chrome installed through Homebrew Bundle.
 - Global Git `push.autoSetupRemote=true` so a branch's first push sets its upstream.
 - VLC playback at 2.35×, preferring English subtitles and falling back to any available track.
 - Spotlight Search Privacy exclusions for `~/Developer` and `/opt/homebrew`.
@@ -61,15 +61,18 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 The `shared` object is the base. `personal` and `cloudflare` profile overrides
 replace scalar values and append to the shared cask and exclusion arrays.
 Paths must be absolute. Edit the shared exclusion array to `[]` to skip Spotlight
-automation. Each cask specifies its Homebrew name, app bundle, and executable
-within the bundle, so the runner can verify installation.
+automation. Casks are listed by their Homebrew names; the runner passes them as
+an inline Brewfile to `brew bundle` through stdin, using Homebrew's default app
+location (`/Applications` unless configured otherwise).
 
 The runner inspects each resource, applies necessary changes, and verifies the
-result before proceeding to its dependents. Existing Homebrew and apps are kept
-without upgrading. An executable Ghostty installation is kept even if installed
-manually. A recorded cask whose app executable is missing is repaired using
-`brew reinstall`. Activation entries are appended only when their exact line is
-absent; existing contents are preserved.
+result before proceeding to its dependents. Casks use `brew bundle check` and
+`brew bundle install`, both with `--no-upgrade`, followed by another check.
+Bundle handles installation and adoption of matching manually installed apps;
+it checks Homebrew's installation records, so a manually deleted app may need
+`brew reinstall --cask <name>`. Removing a cask from this configuration leaves
+the app installed. Activation entries are appended only when their exact line
+is absent; existing contents are preserved.
 
 Git settings use `git config --global`, preserving other settings and identities.
 VLC preferences are merged into `~/Library/Preferences/org.videolan.vlc/vlcrc`;

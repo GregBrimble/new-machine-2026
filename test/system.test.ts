@@ -20,6 +20,21 @@ test("process execution preserves argument boundaries, stdin, stdout, stderr, an
   await assert.rejects(Effect.runPromise(system.run({ file: "/nonexistent/bootstrap-command", args: [] })), /ENOENT/u)
 })
 
+test("interactive commands receive scripted stdin and preserve exit status", async () => {
+  const root = await mkdtemp(join(tmpdir(), "new-machine-input-"))
+  try {
+    const file = join(root, "received stdin")
+    const input = 'cask "ghostty"\ncask "vlc"\n'
+    const result = await Effect.runPromise(liveSystem(process.env).run({
+      file: process.execPath,
+      args: ["-e", 'const fs = require("node:fs"); fs.writeFileSync(process.argv[1], fs.readFileSync(0)); process.exitCode = 7', file],
+      input, interactive: true
+    }))
+    assert.equal(result.code, 7)
+    assert.equal(await readFile(file, "utf8"), input)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
 test("filesystem adapter creates parents and distinguishes missing paths from other read failures", async () => {
   const root = await mkdtemp(join(tmpdir(), "new-machine-system-"))
   const system = liveSystem(process.env)
