@@ -230,6 +230,13 @@ unavailable.
 
 ## Development
 
+For a fresh macOS integration check, see the [Tart VM smoke test](vm/README.md).
+Run `npm run test:vm` to test the published initializer, or append `-- --local`
+to test the current checkout. This is an attended test with real privacy prompts
+and a restart; it is separate from the ordinary unit tests below.
+GitHub Actions runs the ordinary checks on a hosted macOS Tahoe runner for each
+push and pull request; that job does not run the full VM test.
+
 ```sh
 mise exec "node@$(cat .node-version)" -- npm ci --ignore-scripts
 mise exec "node@$(cat .node-version)" -- npm run check

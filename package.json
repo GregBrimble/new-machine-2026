@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node src/main.ts",
     "check": "tsc",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "test:vm": "/bin/bash vm/run.sh"
   },
   "dependencies": {
     "effect": "4.1.1"
