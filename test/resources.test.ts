@@ -17,12 +17,14 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
   const completion = join(dirname(dirname(mise)), "share/zsh/site-functions/_mise")
   const files = new Map<string, string>([[completion, "#compdef mise\nreturn 0\n"]])
   const directories = new Set<string>()
+  const executables = new Set<string>()
   const excluded = new Set<string>()
   const writes: string[] = [], commands: Command[] = [], logs: string[] = []
   const state = {
     dark: false, automatic: true, absentAutomatic: false, brew: true,
     casks: new Set<string>(),
     autoSetupRemote: undefined as boolean | undefined,
+    removeOldTrashItems: false,
     installFailure: false, ineffectiveCask: false, checkFailure: false,
     ineffectiveAppearance: false, deniedSpotlight: false, invalidDefaults: false, rootAlias: false
   }
@@ -32,6 +34,18 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
     run: command => Effect.sync(() => {
       commands.push(command)
       const args = command.args
+      if (command.file === "/usr/bin/xcrun") {
+        assert.equal(args[0], "clang")
+        executables.add(args.at(-1)!); writes.push("compile-helper"); return result()
+      }
+      if (command.file === `${config.downloadsCleanup.helperPath}.next`) {
+        assert.deepEqual(args, ["--help"])
+        assert.ok(executables.has(command.file)); return result()
+      }
+      if (command.file === "/bin/mv") {
+        assert.deepEqual(args, ["-f", `${config.downloadsCleanup.helperPath}.next`, config.downloadsCleanup.helperPath])
+        executables.delete(args[1]); executables.add(args[2]); writes.push("install-helper"); return result()
+      }
       if (command.file === "git") {
         assert.equal(args[0], "config")
         assert.equal(args[1], "--global")
@@ -57,6 +71,12 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
         return result()
       }
       if (command.file === "defaults") {
+        if (args[1] === "com.apple.finder") {
+          assert.equal(args[2], "FXRemoveOldTrashItems")
+          if (args[0] === "read") return result(state.removeOldTrashItems ? "1" : "0")
+          assert.deepEqual(args.slice(3), ["-bool", "true"])
+          state.removeOldTrashItems = true; writes.push("trash"); return result()
+        }
         if (args[0] === "read") {
           if (state.invalidDefaults) return result("", 1, "Permission denied")
           if (state.absentAutomatic) return result("", 1, "The domain/default pair does not exist")
@@ -87,7 +107,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
       }
       throw new Error(`Unexpected command: ${command.file} ${args.join(" ")}`)
     }),
-    executable: path => Effect.sync(() => { reads++; return path === brew && state.brew }),
+    executable: path => Effect.sync(() => { reads++; return path === brew ? state.brew : executables.has(path) }),
     readText: path => Effect.sync(() => { reads++; return files.get(path) }),
     writeText: (path, text) => Effect.sync(() => { files.set(path, text); writes.push(`profile:${path}`) }),
     mkdir: path => Effect.sync(() => { if (!directories.has(path)) { directories.add(path); writes.push(`mkdir:${path}`) } }),
@@ -105,6 +125,7 @@ test("fresh application converges; repeated application preserves installations 
   assert.equal(f.state.automatic, false)
   assert.equal(f.state.brew, true)
   assert.equal(f.state.autoSetupRemote, true)
+  assert.equal(f.state.removeOldTrashItems, true)
   assert.equal(f.files.get(f.config.vlc.configPath), "[core]\nrate=2.35\nsub-language=en,any\n")
   assert.deepEqual([...f.state.casks], f.config.casks)
   assert.equal(f.commands.filter(c => c.args[0] === "bundle" && c.args[1] === "install").length, 1)
@@ -243,7 +264,7 @@ test("empty exclusion list skips Spotlight automation; existing exclusions are p
   await f.run()
   assert.deepEqual([...f.excluded], ["/existing exclusion"])
   assert.equal(f.commands.some(c => c.args[0] === "-"), false)
-  assert.equal(f.directories.size, 0)
+  assert.equal(f.directories.has("/Users/test person/Developer"), false)
 })
 
 test("a configured folder resolving to filesystem root fails before exclusion", async () => {

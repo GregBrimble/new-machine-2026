@@ -8,6 +8,8 @@ import { BootstrapError, checked } from "../system.ts"
 import type { System } from "../system.ts"
 import { gitSettings } from "./git.ts"
 import { vlcSettings } from "./vlc.ts"
+import { downloadsCleanup } from "./downloads.ts"
+import { trashSettings } from "./trash.ts"
 
 const spotlightScript = readFileSync(new URL("./spotlight.applescript", import.meta.url), "utf8")
 const quote = (text: string) => /^[a-zA-Z0-9_/.+-]+$/u.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`
@@ -158,6 +160,8 @@ export function resources(system: System, config: Configuration, { brew, mise }:
     gitSettings(system, config.git.autoSetupRemote),
     casks(system, config.casks, brew),
     vlcSettings(system, config.vlc),
+    downloadsCleanup(system, config.downloadsCleanup),
+    trashSettings(system, config.trash.removeAfter30Days),
     spotlight(system, config.spotlightExcludedFolders)
   ]
 }

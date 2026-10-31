@@ -56,6 +56,8 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 - Ghostty, Spotify, VLC, and Google Chrome installed through Homebrew Bundle.
 - Global Git `push.autoSetupRemote=true` so a branch's first push sets its upstream.
 - VLC playback at 2.35×, preferring English subtitles and falling back to any available track.
+- Background cleanup that moves old Downloads files to Trash after 30 days.
+- Finder's automatic removal of items after 30 days in Trash.
 - Spotlight Search Privacy exclusions for `~/Developer` and `/opt/homebrew`.
 
 The `shared` object is the base. `personal` and `cloudflare` profile overrides
@@ -92,7 +94,47 @@ exit. An already configured VLC needs no shutdown.
 An error stops the run. Fix the cause and rerun to reconcile the remaining
 configuration. Open a new login terminal after applying shell setup. The Node
 pin is selected explicitly for the runner through mise; other projects can
-select their own versions. Nothing runs automatically between invocations.
+select their own versions. Downloads cleanup runs as macOS background activity;
+the other settings are reconciled only when you invoke the initializer.
+
+## Downloads cleanup
+
+`downloadsCleanup` compiles a small Objective-C helper using Foundation's
+[`NSBackgroundActivityScheduler`](https://developer.apple.com/library/archive/documentation/Performance/Conceptual/power_efficiency_guidelines_osx/SchedulingBackgroundActivity.html),
+also used by Finder's Trash maintenance.
+A user LaunchAgent starts the helper at login and keeps it running. The helper
+registers a repeating activity with `checkIntervalHours` (24 by default) as its
+suggested interval. macOS chooses when to run it based on energy usage and
+system load, using the API's default tolerance and background quality of service.
+The activity defers when macOS requests it. There is no exact firing time.
+
+The helper is built with Apple's `xcrun clang`; the standard Homebrew installer
+prepares Command Line Tools on a fresh Mac. If an existing installation lacks
+them, install them with `xcode-select --install` before applying this resource.
+Source and its build fingerprint are kept beside `downloadsCleanup.helperPath`;
+unchanged builds are reused, and a failed rebuild preserves the previous binary.
+The helper uses only macOS libraries and tools at runtime.
+
+Installation and reruns do not immediately clean Downloads. The helper and
+changes to its configuration take effect at the next login. For a manual check,
+run the helper with `--once` followed by the cleanup command and arguments from
+its LaunchAgent plist; this performs cleanup immediately.
+
+The activity invokes macOS's built-in `find` and `trash`. It moves top-level
+regular files only when their creation, modification, and metadata-change times
+are all more than `olderThanDays` days
+old. This conservatively preserves newly created or recently changed downloads,
+including files that retain an older modification date. Folders, symlinks,
+hidden files, and `.download`, `.crdownload`, and `.part` files are skipped.
+Files remain recoverable in Trash until macOS removes them. The default
+`trash.removeAfter30Days: true` enables Finder's built-in automatic removal
+after another 30 days in Trash, applying to all Trash items. Finder manages this
+second stage in the background. The initializer writes its preference; it takes
+effect when Finder next starts, normally at the next login.
+
+The plist is stored at `downloadsCleanup.launchAgentPath`; output and errors go
+to `downloadsCleanup.logPath`. If macOS denies Downloads access, check that log
+and the Files & Folders permissions in System Settings.
 
 ## Preview and inspect
 
