@@ -22,7 +22,8 @@ The launcher uses tools shipped with macOS. It:
 1. Downloads the repository as a GitHub archive when run outside a checkout.
    Git, Xcode, and Command Line Tools are not needed to fetch the runner.
 2. Reuses Homebrew from PATH or a standard prefix. If missing, installs it with
-   its [official installer](https://docs.brew.sh/Installation).
+   its [official installer](https://docs.brew.sh/Installation). Passes the resolved
+   Homebrew executable to the configurator.
 3. Installs mise with `brew install mise` if needed, repairing the formula with
    `brew reinstall mise` if its executable or zsh completion is missing. The
    runner uses Homebrew's stable `opt/mise/bin/mise` path, including when another

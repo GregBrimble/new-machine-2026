@@ -30,7 +30,6 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
   let reads = 0
   const result = (stdout = "", code = 0, stderr = ""): CommandResult => ({ stdout, code, stderr })
   const system: System = {
-    homebrewCandidates: [brew],
     run: command => Effect.sync(() => {
       commands.push(command)
       const args = command.args
@@ -92,7 +91,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
     mkdir: path => Effect.sync(() => { if (!directories.has(path)) { directories.add(path); writes.push(`mkdir:${path}`) } }),
     realpath: path => Effect.sync(() => state.rootAlias ? "/" : path)
   }
-  const run = (mode: Mode = "apply") => Effect.runPromise(reconcile(resources(system, config, mise), mode, text => logs.push(text)))
+  const run = (mode: Mode = "apply") => Effect.runPromise(reconcile(resources(system, config, { brew, mise }), mode, text => logs.push(text)))
   return { config, state, files, completion, directories, excluded, writes, commands, logs, run, reads: () => reads }
 }
 

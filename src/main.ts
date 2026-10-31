@@ -35,7 +35,7 @@ async function main() {
   validateConfiguration(config)
   console.log(`Profile: ${profile}; mode: ${mode}`)
   const system = liveSystem(process.env)
-  await Effect.runPromise(reconcile(resources(system, config, mise), mode, console.log))
+  await Effect.runPromise(reconcile(resources(system, config, { brew, mise }), mode, console.log))
   if (mode === "preview") console.log("Preview only: machine settings were not inspected or applied.")
   else if (mode === "plan") console.log("Plan only: machine settings were inspected, without applying changes.")
   else console.log("Configuration applied. Open a new login terminal to pick up Homebrew and mise.")

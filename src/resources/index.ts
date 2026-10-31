@@ -13,20 +13,6 @@ const spotlightScript = readFileSync(new URL("./spotlight.applescript", import.m
 const quote = (text: string) => /^[a-zA-Z0-9_/.+-]+$/u.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`
 const observation = (ok: boolean, detail: string): Observation => ({ status: ok ? "ok" : "change", detail })
 
-function findHomebrew(system: System) {
-  return Effect.gen(function* () {
-    for (const path of system.homebrewCandidates) if (yield* system.executable(path)) return path
-    return undefined
-  })
-}
-function requireHomebrew(system: System) {
-  return Effect.gen(function* () {
-    const path = yield* findHomebrew(system)
-    if (!path) return yield* Effect.fail(new BootstrapError("Homebrew", "Executable was not found. Apply the Homebrew resource first."))
-    return path
-  })
-}
-
 function appearance(system: System, desired: Configuration["appearance"]): Resource {
   const read = () => Effect.gen(function* () {
     const dark = yield* checked(system, { file: "osascript", args: ["-e", "tell application \"System Events\" to tell appearance preferences to get dark mode"] })
@@ -57,11 +43,11 @@ function appearance(system: System, desired: Configuration["appearance"]): Resou
   }
 }
 
-function homebrew(system: System): Resource {
+function homebrew(system: System, brew: string): Resource {
   const inspect = () => Effect.gen(function* () {
-    const path = yield* findHomebrew(system)
-    if (path) yield* checked(system, { file: path, args: ["--version"] })
-    return observation(Boolean(path), path ? `Installed at ${path}` : "Homebrew must be prepared by bootstrap.sh")
+    const installed = yield* system.executable(brew)
+    if (installed) yield* checked(system, { file: brew, args: ["--version"] })
+    return observation(installed, installed ? `Installed at ${brew}` : "Homebrew must be prepared by bootstrap.sh")
   })
   return {
     id: "homebrew", description: "Verify Homebrew prepared by the launcher", inspect,
@@ -70,26 +56,22 @@ function homebrew(system: System): Resource {
   }
 }
 
-function profileEntry(system: System, id: string, path: string, line: () => Effect.Effect<string | undefined, BootstrapError>): Resource {
+function profileEntry(system: System, id: string, path: string, line: string): Resource {
   const inspect = () => Effect.gen(function* () {
-    const desired = yield* line()
-    if (!desired) return { status: "unknown", detail: `Requires Homebrew before checking ${path}` } as const
     const text = (yield* system.readText(path)) ?? ""
-    return observation(text.split(/\r?\n/u).includes(desired), `Ensure ${id} in ${path}`)
+    return observation(text.split(/\r?\n/u).includes(line), `Ensure ${id} in ${path}`)
   })
   return {
     id, description: `Configure ${id} in ${path}`, inspect,
     apply: () => Effect.gen(function* () {
-      const desired = yield* line()
-      if (!desired) return yield* Effect.fail(new BootstrapError(id, "Homebrew was not found."))
       const text = (yield* system.readText(path)) ?? ""
-      if (!text.split(/\r?\n/u).includes(desired)) yield* system.writeText(path, `${text}${text.endsWith("\n") || !text ? "" : "\n"}\n# ${id}\n${desired}\n`)
+      if (!text.split(/\r?\n/u).includes(line)) yield* system.writeText(path, `${text}${text.endsWith("\n") || !text ? "" : "\n"}\n# ${id}\n${line}\n`)
     }),
     verify: () => verifyObservation(id, inspect)
   }
 }
 
-function cask(system: System, config: Configuration, item: Configuration["casks"][number]): Resource {
+function cask(system: System, config: Configuration, item: Configuration["casks"][number], brew: string): Resource {
   const executable = join(config.appDirectory, item.app, item.executable)
   const inspect = () => Effect.gen(function* () {
     return observation(yield* system.executable(executable), `Ensure ${item.app} in ${config.appDirectory}`)
@@ -97,7 +79,6 @@ function cask(system: System, config: Configuration, item: Configuration["casks"
   return {
     id: `cask:${item.name}`, description: `Ensure ${item.app} in ${config.appDirectory}`, inspect,
     apply: () => Effect.gen(function* () {
-      const brew = yield* requireHomebrew(system)
       const recorded = yield* system.run({ file: brew, args: ["list", "--cask", item.name] })
       yield* checked(system, {
         file: brew, args: [recorded.code === 0 ? "reinstall" : "install", "--cask", `--appdir=${config.appDirectory}`, item.name], interactive: true
@@ -169,18 +150,15 @@ function spotlight(system: System, folders: ReadonlyArray<string>): Resource {
   }
 }
 
-export function resources(system: System, config: Configuration, mise: string): ReadonlyArray<Resource> {
+export function resources(system: System, config: Configuration, { brew, mise }: { brew: string; mise: string }): ReadonlyArray<Resource> {
   return [
-    homebrew(system),
+    homebrew(system, brew),
     appearance(system, config.appearance),
-    profileEntry(system, "Homebrew", config.homebrewProfile, () => Effect.gen(function* () {
-      const brew = yield* findHomebrew(system)
-      return brew ? `eval "$(${quote(brew)} shellenv)"` : undefined
-    })),
-    profileEntry(system, "mise", config.miseProfile, () => Effect.succeed(`eval "$(${quote(mise)} activate zsh)"`)),
+    profileEntry(system, "Homebrew", config.homebrewProfile, `eval "$(${quote(brew)} shellenv)"`),
+    profileEntry(system, "mise", config.miseProfile, `eval "$(${quote(mise)} activate zsh)"`),
     zshCompletions(system, config.miseProfile, mise),
     gitSettings(system, config.git.autoSetupRemote),
-    ...config.casks.map(item => cask(system, config, item)),
+    ...config.casks.map(item => cask(system, config, item, brew)),
     vlcSettings(system, config.vlc),
     spotlight(system, config.spotlightExcludedFolders)
   ]
