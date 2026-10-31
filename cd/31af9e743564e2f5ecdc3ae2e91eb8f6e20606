@@ -1,0 +1,19 @@
+vm/guest.command
+  s_790125743e562e::t_722399b6d92361 109-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd31af9e743564e2f5ecdc3ae2e91eb8f6e20606",
+  "prompts": {},
+  "sessions": {
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
