@@ -12,11 +12,11 @@ export interface Configuration {
 }
 
 // Edit the shared configuration here. Profile arrays add to the shared arrays.
-export function configuration(home: string, env: NodeJS.ProcessEnv, profile: Profile): Configuration {
+export function configuration(home: string, zshDirectory: string, profile: Profile): Configuration {
   const shared: Configuration = {
     appearance: "dark",
-    homebrewProfile: join(env.ZDOTDIR || home, ".zprofile"),
-    miseProfile: join(env.ZDOTDIR || home, ".zshrc"),
+    homebrewProfile: join(zshDirectory, ".zprofile"),
+    miseProfile: join(zshDirectory, ".zshrc"),
     casks: ["ghostty", "spotify", "vlc", "google-chrome"],
     git: { autoSetupRemote: true },
     vlc: {

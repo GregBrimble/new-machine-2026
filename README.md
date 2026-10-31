@@ -50,8 +50,8 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 
 - Dark appearance with automatic light/dark switching disabled.
 - Homebrew prepared by the shell launcher and verified by the Effect runner.
-- A Homebrew `shellenv` entry in `${ZDOTDIR:-$HOME}/.zprofile`.
-- mise activation in `${ZDOTDIR:-$HOME}/.zshrc`.
+- A Homebrew `shellenv` entry in zsh's `.zprofile`.
+- mise activation in zsh's `.zshrc`.
 - mise zsh completions supplied by Homebrew, with zsh completion initialization.
 - Ghostty, Spotify, VLC, and Google Chrome installed through Homebrew Bundle.
 - Global Git `push.autoSetupRemote=true` so a branch's first push sets its upstream.
@@ -64,6 +64,12 @@ Paths must be absolute. Edit the shared exclusion array to `[]` to skip Spotligh
 automation. Casks are listed by their Homebrew names; the runner passes them as
 an inline Brewfile to `brew bundle` through stdin, using Homebrew's default app
 location (`/Applications` unless configured otherwise).
+
+The runner asks `/bin/zsh` for its startup directory, honoring `ZDOTDIR` set in
+`.zshenv` even without `export`, and falling back to `HOME` when unset. This uses
+a noninteractive, non-login shell: it reads `.zshenv`, without loading `.zprofile`
+or `.zshrc`. Set shared startup-directory choices in `.zshenv`. This resolution
+runs in every mode, including previews, and executes any commands in `.zshenv`.
 
 The runner inspects each resource, applies necessary changes, and verifies the
 result before proceeding to its dependents. Casks use `brew bundle check` and
@@ -100,8 +106,9 @@ From a checkout:
 
 From the hosted entry point, pass the same options after `/bin/bash -s --`.
 
-- `--dry-run` prints the desired operations without inspecting machine settings
-  or invoking System Events. Runtime preparation still happens as described above.
+- `--dry-run` prints the desired operations without applying configuration or
+  invoking System Events. Runtime preparation and zsh startup-directory resolution
+  still happen as described above.
 - `--plan` inspects current state and reports `ok`, `change`, or `unknown`,
   without applying machine configuration. Reading appearance may require
   Automation permission. Spotlight remains `unknown` because macOS has no

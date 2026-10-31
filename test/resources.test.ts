@@ -12,7 +12,7 @@ import type { Mode } from "../src/runner.ts"
 import type { Command, CommandResult, System } from "../src/system.ts"
 
 function fixture(mise = "/mise with 'quotes'/bin/mise") {
-  const config = configuration("/Users/test person", {}, "shared")
+  const config = configuration("/Users/test person", "/Users/test person", "shared")
   const brew = "/prefix with spaces/bin/brew"
   const completion = join(dirname(dirname(mise)), "share/zsh/site-functions/_mise")
   const files = new Map<string, string>([[completion, "#compdef mise\nreturn 0\n"]])
@@ -258,9 +258,9 @@ test("light appearance is supported", async () => {
   assert.equal(f.state.dark, false)
 })
 
-test("profiles share the base and honor ZDOTDIR; invalid exclusions fail validation", () => {
+test("profiles share the base and use the resolved zsh directory; invalid exclusions fail validation", () => {
   for (const profile of ["shared", "personal", "cloudflare"] as const) {
-    const config = configuration("/Users/test", { ZDOTDIR: "/Users/test/zsh config" }, profile)
+    const config = configuration("/Users/test", "/Users/test/zsh config", profile)
     assert.equal(config.homebrewProfile, "/Users/test/zsh config/.zprofile")
     assert.equal(config.miseProfile, "/Users/test/zsh config/.zshrc")
     validateConfiguration(config)
@@ -270,7 +270,7 @@ test("profiles share the base and honor ZDOTDIR; invalid exclusions fail validat
 })
 
 test("cask names must be safe to embed in a Brewfile", () => {
-  const config = configuration("/Users/test", {}, "shared")
+  const config = configuration("/Users/test", "/Users/test", "shared")
   for (const name of ['ghostty"\nsystem "unexpected"', "#{1 + 1}", "--force", "vlc\n"]) {
     config.casks = [name]
     assert.throws(() => validateConfiguration(config), /Invalid cask/u)

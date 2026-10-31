@@ -15,7 +15,7 @@ import type { Command, System } from "../src/system.ts"
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "new-machine-settings-"))
   const gitPath = join(root, "gitconfig")
-  const config = configuration(root, {}, "shared")
+  const config = configuration(root, root, "shared")
   config.vlc.configPath = join(root, "VLC preferences/vlcrc")
   const native = liveSystem({ HOME: root, PATH: "/usr/bin:/bin", GIT_CONFIG_GLOBAL: gitPath, GIT_CONFIG_NOSYSTEM: "1" })
   const commands: Command[] = [], writes: string[] = []
@@ -152,11 +152,11 @@ test("VLC verifies the written preferences before reporting success", async () =
 
 test("VLC configuration rejects invalid rates and injected preference lines", () => {
   for (const playbackRate of [0, -1, Infinity, NaN]) {
-    const config = configuration("/Users/test", {}, "shared")
+    const config = configuration("/Users/test", "/Users/test", "shared")
     config.vlc.playbackRate = playbackRate
     assert.throws(() => validateConfiguration(config), /playback rate/u)
   }
-  const config = configuration("/Users/test", {}, "shared")
+  const config = configuration("/Users/test", "/Users/test", "shared")
   config.vlc.subtitleLanguage = "en,any\nrate=99"
   assert.throws(() => validateConfiguration(config), /subtitle languages/u)
 })
