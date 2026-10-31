@@ -75,12 +75,25 @@ With `--ca-bundle`, only the specified PEM certificate file is copied into that
 read-only input share; files containing private keys are rejected. The guest
 combines it with macOS's public roots and configures curl, Git, Ruby/OpenSSL,
 mise, and Node through the test process's environment, including after restart.
+Homebrew receives an explicit curl configuration through `HOMEBREW_CURLRC`,
+since it filters the ordinary certificate environment variables.
 It does not install the CA into either machine's Keychain or disable TLS checks.
 
 The VM is stopped and deleted after success. On failure or interruption it is
 stopped and retained with its name printed. Resume it for inspection with
 `tart run <name>`, and remove it with `tart delete <name>` when finished. Tart's
 downloaded image cache persists across runs.
+
+If the guest fails network preflight with no IPv4 address, check the host's DHCP
+service with `launchctl print system/com.apple.bootpd`. If it is idle and the
+guest receives no lease, a host administrator can start it, then retry in a
+fresh clone:
+
+```sh
+sudo /bin/launchctl kickstart system/com.apple.bootpd
+```
+
+This starts the existing service without changing the host's network settings.
 
 For a fixed OS image, pass a versioned image or OCI digest:
 

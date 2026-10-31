@@ -23,6 +23,9 @@ if [[ -f "$input/network-ca.pem" ]]; then
   cat "$input/network-ca.pem" >> "$bundle"
   export CURL_CA_BUNDLE="$bundle" SSL_CERT_FILE="$bundle" GIT_SSL_CAINFO="$bundle"
   export MISE_EXTRA_CA_CERTS="$input/network-ca.pem" NODE_EXTRA_CA_CERTS="$input/network-ca.pem"
+  # Homebrew filters ordinary environment variables before invoking its tools.
+  export HOMEBREW_CURLRC="$HOME/new-machine-vm.curlrc"
+  printf 'cacert = "%s"\n' "$bundle" > "$HOMEBREW_CURLRC"
   echo 'Using the supplied network CA for this VM test; TLS verification remains enabled.'
 fi
 
