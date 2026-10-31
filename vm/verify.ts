@@ -68,7 +68,7 @@ assert.equal(run("/bin/zsh", ["-lic", [
   '[[ -x "$(whence -p mise)" ]] && (( $+functions[mise] )) || exit 21',
   '[[ "${_comps[mise]}" == _mise ]] || exit 22',
   '(( $+functions[z] && $+functions[zi] )) || exit 23',
-  "node --version"
+  `mise exec node@${pin} -- node --version`
 ].join("\n")]), `v${pin}`)
 
 const files = [config.homebrewProfile, config.miseProfile, join(home, ".gitconfig"),
