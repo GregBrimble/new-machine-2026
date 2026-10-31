@@ -6,6 +6,8 @@ A single macOS bootstrap script with its configuration inline. It ensures:
 - Homebrew, using its [official installer](https://docs.brew.sh/Installation) when missing.
 - A Homebrew `shellenv` entry in your zsh login profile, appended once.
 - [Ghostty](https://ghostty.org/docs/install/binary), using `brew install --cask ghostty`.
+- Spotlight Search Privacy exclusions for the folders in
+  `SPOTLIGHT_EXCLUDED_FOLDERS`, initially `~/Developer` and `/opt/homebrew`.
 
 Existing installations are kept without upgrading them. If Homebrew records
 Ghostty as installed but its app executable is missing, the script reinstalls the
@@ -17,6 +19,20 @@ Edit the configuration at the top of `bootstrap.sh`: `APPEARANCE`,
 `GHOSTTY_APP_DIR` (defaults to `/Applications`). If you use another shell, choose
 its appropriate startup file for `HOMEBREW_SHELL_PROFILE`; the generated entry
 works with zsh and Bash.
+
+Edit `SPOTLIGHT_EXCLUDED_FOLDERS` to change the folder list, or use `()` to skip
+Spotlight automation. Listed folders are created if missing. Exclusions are
+added through System Settings without renaming folders; macOS deduplicates
+repeated additions by path. Existing exclusions are preserved. Removing an entry
+from this array does not re-enable its indexing; remove it from Search Privacy
+in System Settings when you want that.
+
+The UI automation targets **English System Settings on macOS Tahoe (26)**.
+It opens the Spotlight pane and operates its folder picker. Allow your terminal
+to control System Events and System Settings under Privacy & Security > Automation,
+and enable your terminal under Privacy & Security > Accessibility. Leave System
+Settings and the keyboard alone while this step runs. A missing control, denied
+permission, or an unaccepted folder stops the script with an error.
 
 ```sh
 /bin/bash bootstrap.sh --dry-run
