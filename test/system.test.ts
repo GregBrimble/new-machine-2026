@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -33,6 +34,22 @@ test("interactive commands receive scripted stdin and preserve exit status", asy
     assert.equal(result.code, 7)
     assert.equal(await readFile(file, "utf8"), input)
   } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test("interactive installer output can be redirected to stderr for structured CLI output", () => {
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    import { Effect } from "effect"
+    import { liveSystem } from "./src/system.ts"
+    const result = await Effect.runPromise(liveSystem(process.env, { interactiveOutput: "stderr" }).run({
+      file: process.execPath, args: ["-e", 'process.stdout.write("installer output");process.stderr.write("installer error")'],
+      input: "", interactive: true
+    }))
+    console.log(JSON.stringify({ code: result.code }))
+  `], { cwd: new URL("../", import.meta.url), encoding: "utf8", timeout: 10_000 })
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(JSON.parse(result.stdout), { code: 0 })
+  assert.match(result.stderr, /installer output/u)
+  assert.match(result.stderr, /installer error/u)
 })
 
 test("filesystem adapter creates parents and distinguishes missing paths from other read failures", async () => {

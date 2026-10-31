@@ -33,28 +33,35 @@ find_homebrew() {
 }
 
 main() {
-  local arg previous="" profile="shared" mode="" source_dir="" project_dir brew_bin brew_environment mise_bin mise_prefix installed_formulas node_version lock_hash
+  local arg previous="" profile="shared" mode="" json="" source_dir="" project_dir brew_bin brew_environment mise_bin mise_prefix installed_formulas node_version lock_hash
   for arg in "$@"; do
     if [[ "$previous" == --profile ]]; then
       profile="$arg"; previous=""; continue
     fi
+    if [[ "$previous" == --component ]]; then
+      [[ -n "$arg" && "$arg" != --* ]] || fail "--component requires an ID."
+      previous=""; continue
+    fi
     case "$arg" in
-      --dry-run|--plan)
-        [[ -z "$mode" ]] || fail "Choose only one of --dry-run and --plan."
+      --dry-run|--plan|--status)
+        [[ -z "$mode" ]] || fail "Choose only one of --dry-run, --plan, and --status."
         mode="$arg" ;;
-      --profile) previous="$arg" ;;
+      --profile|--component) previous="$arg" ;;
+      --json) json=1 ;;
       -h|--help)
-        printf 'Usage: /bin/bash bootstrap.sh [--dry-run | --plan] [--profile shared|personal|cloudflare]\n'
+        printf 'Usage: /bin/bash bootstrap.sh [--dry-run | --plan | --status] [--component ID] [--json] [--profile shared|personal|cloudflare]\n'
         printf 'Prepares Homebrew, Homebrew-managed mise, and pinned Node.js before running the TypeScript configurator.\n'
         printf 'Preview modes still prepare these prerequisites and npm dependencies, but do not apply other machine settings.\n'
         return ;;
       *) fail "Unknown argument: $arg. Use --help." ;;
     esac
   done
-  [[ -z "$previous" ]] || fail "--profile requires a value."
+  [[ -z "$previous" ]] || fail "$previous requires a value."
   case "$profile" in shared|personal|cloudflare) ;; *) fail "Unknown profile: $profile" ;; esac
   [[ "$(uname -s)" == Darwin ]] || fail "This bootstrap supports macOS only."
   [[ "$(id -u)" != 0 ]] || fail "Run as your normal user, without sudo."
+  # Keep bootstrap/install output off the machine-readable event stream.
+  if [[ -n "$json" ]]; then exec 3>&1; exec 1>&2; fi
 
   bootstrap_tmp="$(mktemp -d "${TMPDIR:-/tmp}/new-machine-2026.XXXXXX")"
   if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
@@ -113,8 +120,13 @@ main() {
       --cache "$HOME/Library/Caches/new-machine-2026/npm"
     printf '%s\n' "$lock_hash" > node_modules/.bootstrap-lock-sha256
   fi
-  BOOTSTRAP_BREW_BIN="$brew_bin" BOOTSTRAP_MISE_BIN="$mise_bin" \
-    "$mise_bin" exec "node@$node_version" -- node src/main.ts "$@"
+  if [[ -n "$json" ]]; then
+    BOOTSTRAP_BREW_BIN="$brew_bin" BOOTSTRAP_MISE_BIN="$mise_bin" \
+      "$mise_bin" exec "node@$node_version" -- node src/main.ts "$@" >&3
+  else
+    BOOTSTRAP_BREW_BIN="$brew_bin" BOOTSTRAP_MISE_BIN="$mise_bin" \
+      "$mise_bin" exec "node@$node_version" -- node src/main.ts "$@"
+  fi
 }
 
 # Read every definition before starting, including when curl-piped into Bash.

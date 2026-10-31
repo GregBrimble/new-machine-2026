@@ -12,6 +12,7 @@ import { downloadsCleanup } from "./downloads.ts"
 import { trashSettings } from "./trash.ts"
 import { developerDirectories } from "./developer.ts"
 import { homebrewBundle } from "./homebrew.ts"
+import { configurationCheckout } from "./checkout.ts"
 
 const spotlightScript = readFileSync(new URL("./spotlight.applescript", import.meta.url), "utf8")
 const quote = (text: string) => /^[a-zA-Z0-9_/.+-]+$/u.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`
@@ -75,12 +76,12 @@ function profileEntry(system: System, id: string, path: string, line: string): R
   }
 }
 
-function zshCompletions(system: System, path: string, mise: string): Resource {
+function zshCompletions(system: System, path: string, mise: string, brew: string, zoxide: boolean): Resource {
   const directory = join(dirname(dirname(mise)), "share/zsh/site-functions")
   const completion = join(directory, "_mise")
   const start = (name: string) => `# >>> new-machine-2026 ${name} >>>\n`
   const end = (name: string) => `# <<< new-machine-2026 ${name} <<<\n`
-  const render = (original: string) => {
+  const render = (original: string, zoxideBin?: string) => {
     let text = original
     for (const name of ["zsh fpath", "zsh completion init"]) {
       const first = text.indexOf(start(name)), last = text.indexOf(end(name))
@@ -92,21 +93,22 @@ function zshCompletions(system: System, path: string, mise: string): Resource {
     }
     // fpath must precede a framework's compinit; initialize at the end only if needed.
     const header = `${start("zsh fpath")}fpath=(${quote(directory)} $fpath)\n${end("zsh fpath")}`
-    const footer = `${start("zsh completion init")}if (( ! $+functions[compdef] )); then\n  autoload -Uz compinit\n  compinit\nfi\nautoload -Uz _mise\ncompdef _mise mise\n${end("zsh completion init")}`
+    const footer = `${start("zsh completion init")}if (( ! $+functions[compdef] )); then\n  autoload -Uz compinit\n  compinit\nfi\nautoload -Uz _mise\ncompdef _mise mise\n${zoxideBin ? `eval "$(${quote(zoxideBin)} init zsh)"\n` : ""}${end("zsh completion init")}`
     return `${header}${text}${!text || text.endsWith("\n") ? "" : "\n"}${footer}`
   }
   const desired = () => Effect.gen(function* () {
     if (!(yield* system.readText(completion))) return yield* Effect.fail(new BootstrapError("zsh completions", `Missing ${completion}; repair mise with brew reinstall mise.`))
+    const zoxideBin = zoxide ? join(yield* checked(system, { file: brew, args: ["--prefix", "zoxide"] }), "bin/zoxide") : undefined
     const current = (yield* system.readText(path)) ?? ""
-    const next = yield* Effect.try({ try: () => render(current), catch: cause => new BootstrapError("zsh completions", cause) })
+    const next = yield* Effect.try({ try: () => render(current, zoxideBin), catch: cause => new BootstrapError("zsh completions", cause) })
     return { current, next }
   })
   const inspect = () => Effect.gen(function* () {
     const state = yield* desired()
-    return observation(state.current === state.next, `Load Homebrew's mise completion and initialize zsh in ${path}`)
+    return observation(state.current === state.next, `Load Homebrew's mise completion${zoxide ? " and zoxide navigation" : ""} and initialize zsh in ${path}`)
   })
   return {
-    id: "zsh-completions", description: `Configure mise zsh completions in ${path}`, inspect,
+    id: "zsh-completions", description: `Configure zsh completions${zoxide ? " and zoxide navigation" : ""} in ${path}`, inspect,
     apply: () => Effect.gen(function* () {
       const state = yield* desired()
       if (state.current !== state.next) yield* system.writeText(path, state.next)
@@ -138,18 +140,20 @@ function spotlight(system: System, folders: ReadonlyArray<string>): Resource {
 }
 
 export function resources(system: System, config: Configuration, { brew, mise }: { brew: string; mise: string }): ReadonlyArray<Resource> {
+  const component = (resource: Resource, dependencies: string[] = [], interaction: Resource["interaction"] = []): Resource => ({ ...resource, dependencies, interaction })
   return [
     homebrew(system, brew),
-    appearance(system, config.appearance),
+    component(appearance(system, config.appearance), [], ["automation"]),
     developerDirectories(system, config.developerDirectory),
-    profileEntry(system, "Homebrew", config.homebrewProfile, `eval "$(${quote(brew)} shellenv)"`),
-    profileEntry(system, "mise", config.miseProfile, `eval "$(${quote(mise)} activate zsh)"`),
-    zshCompletions(system, config.miseProfile, mise),
-    gitSettings(system, config.git.autoSetupRemote),
-    homebrewBundle(system, config, brew),
-    vlcSettings(system, config.vlc),
-    downloadsCleanup(system, config.downloadsCleanup),
+    component(configurationCheckout(system, config.checkout), ["homebrew", "developer-directories"]),
+    component(profileEntry(system, "Homebrew", config.homebrewProfile, `eval "$(${quote(brew)} shellenv)"`), ["homebrew"]),
+    component(profileEntry(system, "mise", config.miseProfile, `eval "$(${quote(mise)} activate zsh)"`), ["homebrew"]),
+    component(gitSettings(system, config.git.autoSetupRemote), ["homebrew"]),
+    component(homebrewBundle(system, config, brew), ["homebrew"], ["terminal"]),
+    component(zshCompletions(system, config.miseProfile, mise, brew, config.formulae.includes("zoxide")), ["mise", "homebrew-bundle"]),
+    component(vlcSettings(system, config.vlc), ["homebrew-bundle"]),
+    component(downloadsCleanup(system, config.downloadsCleanup), ["homebrew"]),
     trashSettings(system, config.trash.removeAfter30Days),
-    spotlight(system, config.spotlightExcludedFolders)
+    component(spotlight(system, config.spotlightExcludedFolders), ["homebrew", "developer-directories"], ["automation", "accessibility"])
   ]
 }

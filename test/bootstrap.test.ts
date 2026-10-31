@@ -43,6 +43,7 @@ else
   [ "$1" = node ] && [ "$2" = src/main.ts ] || exit 91
   printf 'runner:%s\\n' "$*" >> "$FIXTURE_LOG"
   printf 'runner-mise:%s\\nrunner-brew:%s\\n' "$BOOTSTRAP_MISE_BIN" "$BOOTSTRAP_BREW_BIN" >> "$FIXTURE_LOG"
+  if [ "\${FIXTURE_RUNNER_JSON:-0}" = 1 ]; then printf '{"type":"fixture"}\\n'; fi
 fi`)
   const brewTemplate = join(root, "brew-fixture")
   executable(brewTemplate, `
@@ -148,6 +149,17 @@ test("existing Homebrew and its mise are reused, including when brew starts outs
   } finally { f.dispose() }
 })
 
+test("structured status keeps prerequisite output on stderr and forwards the selected component", () => {
+  const f = fixture()
+  try {
+    const result = f.run(["--status", "--json", "--component", "appearance"], { FIXTURE_RUNNER_JSON: "1" }, true)
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(result.stdout.trim().split("\n").map(line => JSON.parse(line)), [{ type: "fixture" }])
+    assert.match(result.stderr, /Homebrew fixture/u)
+    assert.match(f.events(), /runner:node src\/main.ts --status --json --component appearance/u)
+  } finally { f.dispose() }
+})
+
 test("a standalone mise on PATH does not replace the Homebrew-managed prerequisite", () => {
   const f = fixture()
   try {
@@ -218,7 +230,7 @@ test("help and invalid arguments need no downloads or runtime", () => {
   const f = fixture()
   try {
     assert.equal(f.run(["--help"]).status, 0)
-    for (const args of [["--unknown"], ["--profile"], ["--profile", "invalid"], ["--dry-run", "--plan"]]) assert.equal(f.run(args).status, 1)
+    for (const args of [["--unknown"], ["--profile"], ["--profile", "invalid"], ["--dry-run", "--plan"], ["--component"], ["--component", "--json"], ["--status", "--plan"]]) assert.equal(f.run(args).status, 1)
     assert.equal(f.events(), "")
     assert.deepEqual(readdirSync(f.temp), [])
   } finally { f.dispose() }

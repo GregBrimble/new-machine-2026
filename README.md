@@ -35,7 +35,7 @@ The launcher uses tools shipped with macOS. It:
    --ignore-scripts`, then runs the Effect configurator.
 
 Runtime setup precedes every mode, including previews. **On a fresh Mac,
-`--dry-run` and `--plan` can install Homebrew, Homebrew's mise, Node.js, and the
+`--dry-run`, `--plan`, and `--status` can install Homebrew, Homebrew's mise, Node.js, and the
 runner's dependencies.** They do not apply appearance/Spotlight settings, install
 configured formulae/casks, or edit shell profiles. `--help` needs no runtime or downloads.
 
@@ -54,8 +54,10 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 - mise activation in zsh's `.zshrc`.
 - mise zsh completions supplied by Homebrew, with zsh completion initialization.
 - A `~/Developer` layout with `repos`, `worktrees`, and `tries` directories.
+- An editable Git checkout at `~/Developer/repos/github.com/GregBrimble/new-machine-2026`.
 - Ghostty, Spotify, VLC, and Google Chrome installed through Homebrew Bundle.
 - Apple's `container` CLI installed as a Homebrew formula, with its bundled shell completions.
+- zoxide installed through Homebrew and activated in zsh with its default `z` and `zi` commands.
 - Global Git `push.autoSetupRemote=true` so a branch's first push sets its upstream.
 - VLC playback at 2.35×, preferring English subtitles and falling back to any available track.
 - Background cleanup that moves old Downloads files to Trash after 30 days.
@@ -83,6 +85,13 @@ it checks Homebrew's installation records, so a manually deleted app may need
 `brew reinstall --cask <name>`. Removing a package from this configuration leaves
 it installed. Activation entries are appended only when their exact line
 is absent; existing contents are preserved.
+
+The configuration checkout uses public HTTPS, so cloning needs no GitHub login.
+An existing checkout must be its own repository with the expected origin (GitHub
+SSH and HTTPS forms are accepted). Its branch, files, additional remotes, and
+uncommitted changes are preserved. Reruns do not pull, reset, or switch branches.
+Update it explicitly with Git when ready. The hosted launcher still runs its
+downloaded source; run the checkout's `bootstrap.sh` to apply your local edits.
 
 Git settings use `git config --global`, preserving other settings and identities.
 VLC preferences are merged into `~/Library/Preferences/org.videolan.vlc/vlcrc`;
@@ -219,6 +228,7 @@ From a checkout:
 ```sh
 /bin/bash bootstrap.sh --dry-run
 /bin/bash bootstrap.sh --plan --profile cloudflare
+/bin/bash bootstrap.sh --status
 /bin/bash bootstrap.sh --profile personal
 ```
 
@@ -232,6 +242,48 @@ From the hosted entry point, pass the same options after `/bin/bash -s --`.
   Automation permission. Spotlight remains `unknown` because macOS has no
   supported folder-level exclusion query.
 - With neither flag, the runner inspects, applies, and verifies resources in order.
+
+## Component status and repair
+
+Each component exposes Effect operations for inspection, repair, and verification.
+The shared engine in [`src/runner.ts`](src/runner.ts) supports a selected component
+or all components, with declared dependencies and interaction requirements.
+These operations are the foundation for a future status UI and its repair buttons.
+
+```sh
+# Show current state, reporting individual errors and continuing other checks:
+/bin/bash bootstrap.sh --status
+# Inspect one component without inspecting its dependencies:
+/bin/bash bootstrap.sh --status --component appearance
+# Repair one component, checking/repairing its dependencies first:
+/bin/bash bootstrap.sh --component vlc-settings
+# Stream status snapshots as newline-delimited JSON:
+/bin/bash bootstrap.sh --status --json
+# Repair all components with progress events and individual error reporting:
+/bin/bash bootstrap.sh --json
+```
+
+Repeat `--component` to select several. Invalid IDs or dependency graphs fail
+before component operations start. `--plan` is the fail-fast inspection mode;
+`--status` continues after inspection errors so every selected component gets a
+result. Status checks can require Automation permission. All launcher modes still
+prepare the runtime as described above.
+
+JSON output contains a `start` record with protocol version `1`, `component`
+snapshots, and a `complete` record with final states and success. Fatal startup
+errors emit `fatal`. Component snapshots include stable IDs, descriptions,
+dependencies, interaction requirements, phase, status, detail, and whether repair
+was verified. Bootstrap and interactive installer output goes to stderr, keeping
+stdout parseable. Component failures and blocked repairs produce exit status 1.
+
+`runComponents` accepts an event callback for a UI to consume directly without
+parsing console text. It continues independent work after a component failure
+and blocks repairs that depend on that failure. The ordinary text apply command
+keeps fail-fast behavior. Operations run sequentially; a future UI should allow
+one status/repair run at a time. No server or background reconciliation is started.
+Spotlight remains `unknown` after repair because its status cannot be queried
+independently; its event still records that the repair completed. Its metadata
+marks the Automation and Accessibility requirements for an explicit repair action.
 
 ## Spotlight automation
 
@@ -274,7 +326,8 @@ Homebrew or Ghostty.
 Local bootstrap runs reuse dependencies when the lockfile fingerprint matches.
 Hosted runs unpack into a temporary directory, use npm's cache under
 `~/Library/Caches/new-machine-2026/npm`, and clean up the unpacked source and
-dependencies on exit. Homebrew, mise, and its installed Node version persist for reuse.
+dependencies on exit. Homebrew, mise, its installed Node version, and the editable
+configuration checkout persist for reuse.
 
 ## Zsh completions and updates
 
@@ -285,6 +338,11 @@ already defined. Existing frameworks can initialize completion themselves.
 mise's completion is explicitly registered, including when a prior completion
 cache exists. The two marked completion blocks are updated in place on reruns;
 other startup-file contents are preserved. No separate completion package is needed.
+
+When `zoxide` is in the formula list, the same footer activates it after completion
+initialization with `zoxide init zsh`, using the stable prefix reported by
+Homebrew. [`zoxide`](https://github.com/ajeetdsouza/zoxide) learns visited directories
+for `z <query>`; its optional interactive `zi` command needs `fzf` installed separately.
 
 Update mise with `brew upgrade mise`; Node and other tools are still managed by
 mise. Upstream notes that the Homebrew build can be larger and slower than its

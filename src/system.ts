@@ -27,7 +27,7 @@ export interface System {
 const io = <A>(operation: string, run: () => Promise<A>): Effect.Effect<A, BootstrapError> =>
   Effect.tryPromise({ try: run, catch: cause => new BootstrapError(operation, cause) })
 
-export function liveSystem(env: NodeJS.ProcessEnv): System {
+export function liveSystem(env: NodeJS.ProcessEnv, { interactiveOutput = "inherit" }: { interactiveOutput?: "inherit" | "stderr" } = {}): System {
   return {
     run: command => Effect.tryPromise({
       try: signal => new Promise<CommandResult>((resolve, reject) => {
@@ -42,7 +42,7 @@ export function liveSystem(env: NodeJS.ProcessEnv): System {
           const child = spawn(command.file, [...command.args], {
             env, signal,
             stdio: command.interactive
-              ? [command.input === undefined ? terminal ?? "inherit" : "pipe", "inherit", "inherit"]
+              ? [command.input === undefined ? terminal ?? "inherit" : "pipe", interactiveOutput === "stderr" ? 2 : "inherit", "inherit"]
               : [command.input === undefined ? "ignore" : "pipe", "pipe", "pipe"]
           })
           let stdout = "", stderr = ""

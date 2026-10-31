@@ -35,6 +35,8 @@ for (const name of ["repos", "worktrees", "tries"]) assert.ok(statSync(join(conf
 run(brew, ["bundle", "check", "--no-upgrade", "--file=-"],
   [...config.formulae.map(name => `brew "${name}"\n`), ...config.casks.map(name => `cask "${name}"\n`)].join(""))
 assert.ok(run(join(run(brew, ["--prefix", "container"]), "bin/container"), ["--version"]), "Apple container CLI runs")
+assert.equal(run("/usr/bin/git", ["-C", config.checkout.directory, "rev-parse", "--show-toplevel"]), config.checkout.directory)
+assert.equal(run("/usr/bin/git", ["-C", config.checkout.directory, "config", "--get", "remote.origin.url"]), config.checkout.remote)
 for (const app of ["Ghostty", "Spotify", "VLC", "Google Chrome"]) {
   assert.ok(statSync(`/Applications/${app}.app/Contents/Info.plist`).isFile(), `${app} is installed`)
 }
@@ -45,6 +47,7 @@ assert.equal(run("/bin/zsh", ["-lic", [
   '[[ "$(whence -p brew)" == /opt/homebrew/bin/brew ]] || exit 20',
   '[[ -x "$(whence -p mise)" ]] && (( $+functions[mise] )) || exit 21',
   '[[ "${_comps[mise]}" == _mise ]] || exit 22',
+  '(( $+functions[z] && $+functions[zi] )) || exit 23',
   "node --version"
 ].join("\n")]), `v${pin}`)
 
@@ -54,7 +57,11 @@ const files = [config.homebrewProfile, config.miseProfile, join(home, ".gitconfi
 const snapshot = {
   files: Object.fromEntries(files.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
   formulae: run(brew, ["list", "--formula", "--versions"]).split("\n").sort(),
-  casks: run(brew, ["list", "--cask", "--versions"]).split("\n").sort()
+  casks: run(brew, ["list", "--cask", "--versions"]).split("\n").sort(),
+  checkout: {
+    head: run("/usr/bin/git", ["-C", config.checkout.directory, "rev-parse", "HEAD"]),
+    status: run("/usr/bin/git", ["-C", config.checkout.directory, "status", "--porcelain"])
+  }
 }
 if (stage === "first") writeFileSync(join(results, "before.json"), JSON.stringify(snapshot, null, 2))
 else assert.deepEqual(snapshot, JSON.parse(readFileSync(join(results, "before.json"), "utf8")), "Repeat application/login preserves files and package versions")

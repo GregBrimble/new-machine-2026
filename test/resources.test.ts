@@ -15,6 +15,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
   const config = configuration("/Users/test person", "/Users/test person", "shared")
   const brew = "/prefix with spaces/bin/brew"
   const completion = join(dirname(dirname(mise)), "share/zsh/site-functions/_mise")
+  const zoxide = join(dirname(dirname(mise)), "zoxide/bin/zoxide")
   const files = new Map<string, string>([[completion, "#compdef mise\nreturn 0\n"]])
   const directories = new Set<string>()
   const executables = new Set<string>()
@@ -24,6 +25,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
     dark: false, automatic: true, absentAutomatic: false, brew: true,
     formulae: new Set<string>(),
     casks: new Set<string>(),
+    checkoutOrigin: undefined as string | undefined,
     autoSetupRemote: undefined as boolean | undefined,
     removeOldTrashItems: false,
     installFailure: false, ineffectivePackage: false, checkFailure: false,
@@ -48,6 +50,16 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
         executables.delete(args[1]); executables.add(args[2]); writes.push("install-helper"); return result()
       }
       if (command.file === "git") {
+        if (args[0] === "clone") {
+          assert.deepEqual(args, ["clone", "--", config.checkout.remote, config.checkout.directory])
+          directories.add(config.checkout.directory); state.checkoutOrigin = config.checkout.remote; writes.push("clone-checkout"); return result()
+        }
+        if (args[0] === "-C") {
+          assert.equal(args[1], config.checkout.directory)
+          if (args[2] === "rev-parse") return result(config.checkout.directory)
+          assert.deepEqual(args.slice(2), ["config", "--get", "remote.origin.url"])
+          return result(state.checkoutOrigin)
+        }
         assert.equal(args[0], "config")
         assert.equal(args[1], "--global")
         assert.equal(args[2], "--type=bool")
@@ -88,6 +100,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
       if (command.file === brew) {
         assert.equal(state.brew, true)
         if (args[0] === "--version") return result("Homebrew fixture")
+        if (args[0] === "--prefix") { assert.equal(args[1], "zoxide"); return result(dirname(dirname(zoxide))) }
         assert.equal(args[0], "bundle")
         assert.deepEqual(args.slice(2), ["--no-upgrade", "--file=-"])
         assert.equal(command.input,
@@ -121,7 +134,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
     realpath: path => Effect.sync(() => state.rootAlias ? "/" : path)
   }
   const run = (mode: Mode = "apply") => Effect.runPromise(reconcile(resources(system, config, { brew, mise }), mode, text => logs.push(text)))
-  return { config, state, files, completion, directories, excluded, writes, commands, logs, run, reads: () => reads }
+  return { config, state, files, completion, zoxide, directories, excluded, writes, commands, logs, run, reads: () => reads }
 }
 
 test("fresh application converges; repeated application preserves installations and profile bytes", async () => {
@@ -132,6 +145,7 @@ test("fresh application converges; repeated application preserves installations 
   assert.equal(f.state.automatic, false)
   assert.equal(f.state.brew, true)
   assert.equal(f.state.autoSetupRemote, true)
+  assert.equal(f.state.checkoutOrigin, f.config.checkout.remote)
   assert.equal(f.state.removeOldTrashItems, true)
   for (const name of ["repos", "worktrees", "tries"]) assert.ok(f.directories.has(join(f.config.developerDirectory, name)))
   assert.equal(f.files.get(f.config.vlc.configPath), "[core]\nrate=2.35\nsub-language=en,any\n")
@@ -247,12 +261,14 @@ test("zsh loads mise completions in a fresh shell and alongside an existing comp
       await f.run()
       mkdirSync(dirname(mise), { recursive: true })
       writeFileSync(mise, "#!/bin/sh\nexit 0\n"); chmodSync(mise, 0o755)
+      mkdirSync(dirname(f.zoxide), { recursive: true })
+      writeFileSync(f.zoxide, "#!/bin/sh\nprintf 'typeset -g ZOXIDE_FIXTURE_LOADED=1\\n'\n"); chmodSync(f.zoxide, 0o755)
       mkdirSync(dirname(f.completion), { recursive: true })
       writeFileSync(f.completion, f.files.get(f.completion)!)
       const profile = join(root, "zshrc")
       writeFileSync(profile, f.files.get(f.config.miseProfile)!)
       const result = spawnSync("/bin/zsh", ["-f", "-c",
-        'source "$1" || exit; print -r -- "${_comps[mise]}"; print -r -- "${_comps[fixture-command]:-none}"', "zsh", profile], {
+        'source "$1" || exit; [[ "$ZOXIDE_FIXTURE_LOADED" == 1 ]] || exit 24; print -r -- "${_comps[mise]}"; print -r -- "${_comps[fixture-command]:-none}"', "zsh", profile], {
         encoding: "utf8", timeout: 10000, env: { HOME: root, ZDOTDIR: root, PATH: "/usr/bin:/bin" }
       })
       assert.equal(result.status, 0, result.stderr)

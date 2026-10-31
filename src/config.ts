@@ -6,6 +6,7 @@ export interface Configuration {
   homebrewProfile: string
   miseProfile: string
   developerDirectory: string
+  checkout: { directory: string; remote: string }
   formulae: ReadonlyArray<string>
   casks: ReadonlyArray<string>
   git: { autoSetupRemote: boolean }
@@ -22,7 +23,11 @@ export function configuration(home: string, zshDirectory: string, profile: Profi
     homebrewProfile: join(zshDirectory, ".zprofile"),
     miseProfile: join(zshDirectory, ".zshrc"),
     developerDirectory: join(home, "Developer"),
-    formulae: ["container"],
+    checkout: {
+      directory: join(home, "Developer/repos/github.com/GregBrimble/new-machine-2026"),
+      remote: "https://github.com/GregBrimble/new-machine-2026.git"
+    },
+    formulae: ["container", "zoxide"],
     casks: ["ghostty", "spotify", "vlc", "google-chrome"],
     git: { autoSetupRemote: true },
     vlc: {
@@ -57,10 +62,11 @@ export function configuration(home: string, zshDirectory: string, profile: Profi
 
 export function validateConfiguration(config: Configuration): void {
   if (!["dark", "light"].includes(config.appearance)) throw new Error("Appearance must be dark or light.")
-  for (const path of [config.homebrewProfile, config.miseProfile, config.developerDirectory, config.vlc.configPath,
+  for (const path of [config.homebrewProfile, config.miseProfile, config.developerDirectory, config.checkout.directory, config.vlc.configPath,
     config.downloadsCleanup.directory, config.downloadsCleanup.helperPath, config.downloadsCleanup.launchAgentPath, config.downloadsCleanup.logPath]) {
     if (!isAbsolute(path)) throw new Error(`Configured paths must be absolute: ${path}`)
   }
+  if (!config.checkout.remote || config.checkout.remote.startsWith("-") || /[\r\n\0]/u.test(config.checkout.remote)) throw new Error("Checkout remote must be a Git URL or path.")
   if (typeof config.git.autoSetupRemote !== "boolean") throw new Error("Git autoSetupRemote must be a boolean.")
   if (!Number.isFinite(config.vlc.playbackRate) || config.vlc.playbackRate <= 0) throw new Error("VLC playback rate must be positive and finite.")
   if (!/^[a-z]+(?:,[a-z]+)*$/iu.test(config.vlc.subtitleLanguage)) throw new Error("VLC subtitle languages must be comma-separated language names or codes.")
