@@ -18,7 +18,12 @@ export function configuration(home: string, env: NodeJS.ProcessEnv, profile: Pro
     homebrewProfile: join(env.ZDOTDIR || home, ".zprofile"),
     miseProfile: join(env.ZDOTDIR || home, ".zshrc"),
     appDirectory: "/Applications",
-    casks: [{ name: "ghostty", app: "Ghostty.app", executable: "Contents/MacOS/ghostty" }],
+    casks: [
+      { name: "ghostty", app: "Ghostty.app", executable: "Contents/MacOS/ghostty" },
+      { name: "spotify", app: "Spotify.app", executable: "Contents/MacOS/Spotify" },
+      { name: "vlc", app: "VLC.app", executable: "Contents/MacOS/VLC" },
+      { name: "google-chrome", app: "Google Chrome.app", executable: "Contents/MacOS/Google Chrome" }
+    ],
     spotlightExcludedFolders: [join(home, "Developer"), "/opt/homebrew"]
   }
   const profiles: Record<Exclude<Profile, "shared">, Partial<Configuration>> = {

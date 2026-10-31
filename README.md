@@ -52,7 +52,7 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 - A Homebrew `shellenv` entry in `${ZDOTDIR:-$HOME}/.zprofile`.
 - mise activation in `${ZDOTDIR:-$HOME}/.zshrc`.
 - mise zsh completions supplied by Homebrew, with zsh completion initialization.
-- Ghostty installed in `/Applications` through Homebrew.
+- Ghostty, Spotify, VLC, and Google Chrome installed in `/Applications` through Homebrew.
 - Spotlight Search Privacy exclusions for `~/Developer` and `/opt/homebrew`.
 
 The `shared` object is the base. `personal` and `cloudflare` profile overrides

@@ -15,14 +15,14 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
   const config = configuration("/Users/test person", {}, "shared")
   config.appDirectory = "/Applications with spaces"
   const brew = "/prefix with spaces/bin/brew"
-  const ghostty = `${config.appDirectory}/Ghostty.app/Contents/MacOS/ghostty`
   const completion = join(dirname(dirname(mise)), "share/zsh/site-functions/_mise")
   const files = new Map<string, string>([[completion, "#compdef mise\nreturn 0\n"]])
   const directories = new Set<string>()
   const excluded = new Set<string>()
   const writes: string[] = [], commands: Command[] = [], logs: string[] = []
   const state = {
-    dark: false, automatic: true, absentAutomatic: false, brew: true, ghostty: false, cask: false,
+    dark: false, automatic: true, absentAutomatic: false, brew: true,
+    apps: new Set<string>(), casks: new Set<string>(),
     installFailure: false, ineffectiveCask: false,
     ineffectiveAppearance: false, deniedSpotlight: false, invalidDefaults: false, rootAlias: false
   }
@@ -55,17 +55,24 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
       if (command.file === brew) {
         assert.equal(state.brew, true)
         if (args[0] === "--version") return result("Homebrew fixture")
-        if (args[0] === "list") return result("", state.cask ? 0 : 1)
+        assert.equal(args[1], "--cask")
+        const item = config.casks.find(cask => cask.name === args.at(-1))
+        assert.ok(item)
+        if (args[0] === "list") return result("", state.casks.has(item.name) ? 0 : 1)
         assert.ok(args[0] === "install" || args[0] === "reinstall")
         assert.equal(command.interactive, true)
         assert.equal(args[2], `--appdir=${config.appDirectory}`)
         if (state.installFailure) return result("", 1, "Cask installation failed")
-        if (!state.ineffectiveCask) { state.ghostty = true; state.cask = true; writes.push(`ghostty:${args[0]}`) }
+        if (!state.ineffectiveCask) {
+          state.apps.add(join(config.appDirectory, item.app, item.executable))
+          state.casks.add(item.name)
+          writes.push(`${item.name}:${args[0]}`)
+        }
         return result()
       }
       throw new Error(`Unexpected command: ${command.file} ${args.join(" ")}`)
     }),
-    executable: path => Effect.sync(() => { reads++; return path === brew ? state.brew : path === ghostty && state.ghostty }),
+    executable: path => Effect.sync(() => { reads++; return path === brew ? state.brew : state.apps.has(path) }),
     readText: path => Effect.sync(() => { reads++; return files.get(path) }),
     writeText: (path, text) => Effect.sync(() => { files.set(path, text); writes.push(`profile:${path}`) }),
     mkdir: path => Effect.sync(() => { if (!directories.has(path)) { directories.add(path); writes.push(`mkdir:${path}`) } }),
@@ -82,7 +89,8 @@ test("fresh application converges; repeated application preserves installations 
   assert.equal(f.state.dark, true)
   assert.equal(f.state.automatic, false)
   assert.equal(f.state.brew, true)
-  assert.equal(f.state.ghostty, true)
+  assert.deepEqual([...f.state.apps], f.config.casks.map(item => join(f.config.appDirectory, item.app, item.executable)))
+  assert.deepEqual([...f.state.casks], f.config.casks.map(item => item.name))
   assert.deepEqual([...f.excluded], f.config.spotlightExcludedFolders)
   assert.match(f.files.get(f.config.homebrewProfile)!, /^# existing content without a final newline\n/u)
   for (const profile of [f.config.homebrewProfile, f.config.miseProfile]) {
@@ -109,16 +117,16 @@ test("preview does not query system state; plan observes without applying change
   assert.ok(f.logs.some(line => line.includes("[unknown] spotlight")))
 })
 
-test("existing manually installed Ghostty is kept", async () => {
+test("existing manually installed apps are kept", async () => {
   const f = fixture()
-  f.state.brew = true; f.state.ghostty = true
+  for (const item of f.config.casks) f.state.apps.add(join(f.config.appDirectory, item.app, item.executable))
   await f.run()
   assert.equal(f.commands.some(c => c.args.includes("--cask")), false)
 })
 
 test("missing app with an existing cask record is repaired with reinstall", async () => {
   const f = fixture()
-  f.state.brew = true; f.state.cask = true
+  f.state.casks.add("ghostty")
   await f.run()
   assert.ok(f.writes.includes("ghostty:reinstall"))
 })
@@ -135,7 +143,7 @@ for (const failure of ["ineffectiveAppearance", "invalidDefaults"] as const) {
   test(`${failure} stops dependent changes`, async () => {
     const f = fixture(); f.state[failure] = true
     await assert.rejects(f.run())
-    assert.equal(f.state.ghostty, false)
+    assert.equal(f.state.apps.size, 0)
     assert.equal(f.files.has(f.config.homebrewProfile), false)
     assert.equal(f.excluded.size, 0)
   })
