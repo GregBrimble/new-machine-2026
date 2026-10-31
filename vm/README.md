@@ -30,6 +30,10 @@ Finder, use Go > Go to Folder to open:
 Follow the Terminal instructions: allow Automation prompts, enable Terminal's
 Accessibility access, and leave the keyboard and System Settings alone during
 Search Privacy automation. Grant any normal Downloads permission prompts.
+Choose a disposable passphrase when SSH signing key generation asks, then enter
+it again to save it in the guest's Keychain. No GitHub account or key upload is
+needed: the test checks signing and verification locally. After restart, its
+first signed commit exercises the signing helper's Keychain reload.
 Finally, visually check both Search Privacy exclusions and type `yes`. macOS has
 no supported folder-level API for independently reading that exclusion list.
 The test never edits the TCC database or disables SIP to bypass these steps.
@@ -44,7 +48,7 @@ A permission failure fails the test and keeps the VM available for inspection.
 
 Checks cover the pinned Node version, Homebrew-owned mise, zsh activation and
 completions, zoxide's shell functions, the editable configuration checkout,
-the Apple container CLI, application bundles and Homebrew receipts, dark appearance, Git,
+the Apple container CLI, application bundles and Homebrew receipts, dark appearance, Git SSH signing,
 VLC, the Developer directories, Finder's Trash preference, configuration file
 hashes, package versions, and background helper startup. Repeat application must
 leave those files and package versions unchanged; only Spotlight's ensure step

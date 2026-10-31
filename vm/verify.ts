@@ -31,6 +31,20 @@ else {
 }
 assert.equal(run("/usr/bin/defaults", ["read", "com.apple.finder", "FXRemoveOldTrashItems"]), "1")
 assert.equal(run("/usr/bin/git", ["config", "--global", "--type=bool", "--get", "push.autoSetupRemote"]), "true")
+assert.equal(run("/usr/bin/git", ["config", "--global", "--get", "gpg.format"]), "ssh")
+assert.equal(run("/usr/bin/git", ["config", "--global", "--get", "user.signingkey"]), `${config.git.signing.keyPath}.pub`)
+assert.equal(run("/usr/bin/git", ["config", "--global", "--type=bool", "--get", "commit.gpgsign"]), "true")
+assert.equal(run("/usr/bin/git", ["config", "--global", "--type=bool", "--get", "tag.gpgsign"]), "true")
+const signingProbe = join(home, "new-machine-vm-smoke/signing-probe")
+mkdirSync(signingProbe, { recursive: true })
+run("/usr/bin/git", ["init", signingProbe])
+run("/usr/bin/git", ["-C", signingProbe, "config", "user.name", "VM Signing Test"])
+run("/usr/bin/git", ["-C", signingProbe, "config", "user.email", "vm-test@example.invalid"])
+// The after-login commit exercises Keychain reload before any bootstrap rerun.
+run("/usr/bin/git", ["-C", signingProbe, "commit", "--allow-empty", "-m", `Signing check: ${stage}`])
+run("/usr/bin/git", ["-C", signingProbe, "verify-commit", "HEAD"])
+run("/usr/bin/git", ["-C", signingProbe, "tag", "-m", stage, `signing-${stage}`])
+run("/usr/bin/git", ["-C", signingProbe, "verify-tag", `signing-${stage}`])
 for (const name of ["repos", "worktrees", "tries"]) assert.ok(statSync(join(config.developerDirectory, name)).isDirectory())
 run(brew, ["bundle", "check", "--no-upgrade", "--file=-"],
   [...config.formulae.map(name => `brew "${name}"\n`), ...config.casks.map(name => `cask "${name}"\n`)].join(""))
@@ -52,6 +66,7 @@ assert.equal(run("/bin/zsh", ["-lic", [
 ].join("\n")]), `v${pin}`)
 
 const files = [config.homebrewProfile, config.miseProfile, join(home, ".gitconfig"),
+  config.git.signing.programPath, config.git.signing.allowedSignersPath, `${config.git.signing.keyPath}.pub`,
   config.vlc.configPath, config.downloadsCleanup.launchAgentPath,
   config.downloadsCleanup.helperPath, `${config.downloadsCleanup.helperPath}.m`, `${config.downloadsCleanup.helperPath}.sha256`]
 const snapshot = {

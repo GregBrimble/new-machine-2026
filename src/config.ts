@@ -9,7 +9,10 @@ export interface Configuration {
   checkout: { directory: string; remote: string }
   formulae: ReadonlyArray<string>
   casks: ReadonlyArray<string>
-  git: { autoSetupRemote: boolean }
+  git: {
+    autoSetupRemote: boolean
+    signing: { keyPath: string; allowedSignersPath: string; programPath: string }
+  }
   vlc: { configPath: string; playbackRate: number; subtitleLanguage: string }
   downloadsCleanup: { directory: string; olderThanDays: number; checkIntervalHours: number; helperPath: string; launchAgentPath: string; logPath: string }
   trash: { removeAfter30Days: boolean }
@@ -29,7 +32,14 @@ export function configuration(home: string, zshDirectory: string, profile: Profi
     },
     formulae: ["container", "zoxide"],
     casks: ["ghostty", "spotify", "vlc", "google-chrome"],
-    git: { autoSetupRemote: true },
+    git: {
+      autoSetupRemote: true,
+      signing: {
+        keyPath: join(home, ".ssh/id_ed25519_signing"),
+        allowedSignersPath: join(home, ".ssh/git_allowed_signers"),
+        programPath: join(home, "Library/Application Support/new-machine-2026/git-ssh-sign")
+      }
+    },
     vlc: {
       configPath: join(home, "Library/Preferences/org.videolan.vlc/vlcrc"),
       playbackRate: 2.35,
@@ -63,11 +73,16 @@ export function configuration(home: string, zshDirectory: string, profile: Profi
 export function validateConfiguration(config: Configuration): void {
   if (!["dark", "light"].includes(config.appearance)) throw new Error("Appearance must be dark or light.")
   for (const path of [config.homebrewProfile, config.miseProfile, config.developerDirectory, config.checkout.directory, config.vlc.configPath,
+    ...Object.values(config.git.signing),
     config.downloadsCleanup.directory, config.downloadsCleanup.helperPath, config.downloadsCleanup.launchAgentPath, config.downloadsCleanup.logPath]) {
     if (!isAbsolute(path)) throw new Error(`Configured paths must be absolute: ${path}`)
   }
   if (!config.checkout.remote || config.checkout.remote.startsWith("-") || /[\r\n\0]/u.test(config.checkout.remote)) throw new Error("Checkout remote must be a Git URL or path.")
   if (typeof config.git.autoSetupRemote !== "boolean") throw new Error("Git autoSetupRemote must be a boolean.")
+  const signingPaths = Object.values(config.git.signing)
+  if (signingPaths.some(path => /[\r\n\0]/u.test(path)) || new Set([...signingPaths, `${config.git.signing.keyPath}.pub`]).size !== 4) {
+    throw new Error("Git signing paths must be distinct and contain no line breaks or NULs.")
+  }
   if (!Number.isFinite(config.vlc.playbackRate) || config.vlc.playbackRate <= 0) throw new Error("VLC playback rate must be positive and finite.")
   if (!/^[a-z]+(?:,[a-z]+)*$/iu.test(config.vlc.subtitleLanguage)) throw new Error("VLC subtitle languages must be comma-separated language names or codes.")
   if (!Number.isSafeInteger(config.downloadsCleanup.olderThanDays) || config.downloadsCleanup.olderThanDays <= 0) throw new Error("Downloads cleanup age must be a positive whole number of days.")

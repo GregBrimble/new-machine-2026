@@ -13,6 +13,7 @@ import { trashSettings } from "./trash.ts"
 import { developerDirectories } from "./developer.ts"
 import { homebrewBundle } from "./homebrew.ts"
 import { configurationCheckout } from "./checkout.ts"
+import { gitSigning, gitSigningKey } from "./signing.ts"
 
 const spotlightScript = readFileSync(new URL("./spotlight.applescript", import.meta.url), "utf8")
 const quote = (text: string) => /^[a-zA-Z0-9_/.+-]+$/u.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`
@@ -149,6 +150,8 @@ export function resources(system: System, config: Configuration, { brew, mise }:
     component(profileEntry(system, "Homebrew", config.homebrewProfile, `eval "$(${quote(brew)} shellenv)"`), ["homebrew"]),
     component(profileEntry(system, "mise", config.miseProfile, `eval "$(${quote(mise)} activate zsh)"`), ["homebrew"]),
     component(gitSettings(system, config.git.autoSetupRemote), ["homebrew"]),
+    component(gitSigningKey(system, config.git.signing), ["homebrew"], ["terminal"]),
+    component(gitSigning(system, config.git.signing), ["git-signing-key"]),
     component(homebrewBundle(system, config, brew), ["homebrew"], ["terminal"]),
     component(zshCompletions(system, config.miseProfile, mise, brew, config.formulae.includes("zoxide")), ["mise", "homebrew-bundle"]),
     component(vlcSettings(system, config.vlc), ["homebrew-bundle"]),

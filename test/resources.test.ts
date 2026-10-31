@@ -27,6 +27,7 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
     casks: new Set<string>(),
     checkoutOrigin: undefined as string | undefined,
     autoSetupRemote: undefined as boolean | undefined,
+    signingSettings: new Map<string, string>(), signingAgent: false,
     removeOldTrashItems: false,
     installFailure: false, ineffectivePackage: false, checkFailure: false,
     ineffectiveAppearance: false, deniedSpotlight: false, invalidDefaults: false, rootAlias: false
@@ -37,6 +38,21 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
     run: command => Effect.sync(() => {
       commands.push(command)
       const args = command.args
+      if (command.file === "/bin/test") return result("", args[0] === "-t" || files.has(args[1]) ? 0 : 1)
+      if (command.file === "/usr/bin/install") { directories.add(args.at(-1)!); writes.push("signing-directory"); return result() }
+      if (command.file === "/usr/bin/ssh-keygen") {
+        if (args[0] === "-l") return result("256 SHA256:fixture Git signing (ED25519)")
+        assert.equal(command.interactive, true)
+        assert.equal(args.includes("-N"), false)
+        files.set(config.git.signing.keyPath, "private key fixture")
+        files.set(`${config.git.signing.keyPath}.pub`, "ssh-ed25519 AAAA fixture\n")
+        writes.push("signing-key"); return result()
+      }
+      if (command.file === "/usr/bin/ssh-add") {
+        if (args[0] === "--apple-use-keychain") { state.signingAgent = true; writes.push("keychain"); return result() }
+        return result("", state.signingAgent ? 0 : 1)
+      }
+      if (command.file === "/bin/chmod") { executables.add(args[1]); writes.push("signing-permissions"); return result() }
       if (command.file === "/usr/bin/xcrun") {
         assert.equal(args[0], "clang")
         executables.add(args.at(-1)!); writes.push("compile-helper"); return result()
@@ -62,6 +78,8 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
         }
         assert.equal(args[0], "config")
         assert.equal(args[1], "--global")
+        if (args[2] === "--get-all") return state.signingSettings.has(args[3]) ? result(state.signingSettings.get(args[3])) : result("", 1)
+        if (args[2] === "--replace-all") { state.signingSettings.set(args[3], args[4]); writes.push("signing-config"); return result() }
         assert.equal(args[2], "--type=bool")
         assert.equal(args[4], "push.autoSetupRemote")
         if (args[3] === "--get") return state.autoSetupRemote === undefined ? result("", 1) : result(String(state.autoSetupRemote))

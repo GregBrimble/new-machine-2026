@@ -59,6 +59,7 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 - Apple's `container` CLI installed as a Homebrew formula, with its bundled shell completions.
 - zoxide installed through Homebrew and activated in zsh with its default `z` and `zi` commands.
 - Global Git `push.autoSetupRemote=true` so a branch's first push sets its upstream.
+- A dedicated Ed25519 SSH signing key, macOS Keychain integration, automatic commit/tag signing, and local verification.
 - VLC playback at 2.35×, preferring English subtitles and falling back to any available track.
 - Background cleanup that moves old Downloads files to Trash after 30 days.
 - Finder's automatic removal of items after 30 days in Trash.
@@ -242,6 +243,51 @@ From the hosted entry point, pass the same options after `/bin/bash -s --`.
   Automation permission. Spotlight remains `unknown` because macOS has no
   supported folder-level exclusion query.
 - With neither flag, the runner inspects, applies, and verifies resources in order.
+
+## Git signing
+
+`git-signing-key` creates `~/.ssh/id_ed25519_signing` on each machine. It runs
+Apple's `ssh-keygen` interactively: choose a passphrase in your terminal, then
+enter it again for `ssh-add --apple-use-keychain` to save it in macOS Keychain.
+Passphrases never enter the TypeScript config or command arguments. Key creation
+requires a terminal and a working login SSH agent. Existing complete key pairs
+are reused; incomplete or invalid pairs fail without being overwritten.
+
+`git-signing` depends on that key being usable, then sets global `gpg.format=ssh`,
+`user.signingkey`, `commit.gpgsign=true`, and `tag.gpgsign=true`. This switches an
+existing global GPG signing selection to SSH. Git name/email and authentication
+keys remain independently configured; repository-specific Git settings can
+override these global defaults.
+
+A small `gpg.ssh.program` helper in `~/Library/Application Support/new-machine-2026/`
+checks the dedicated signing key before signing and reloads it with Apple's
+`ssh-add --apple-use-keychain` when needed. That command retrieves its saved
+passphrase from Keychain, so signing works after restart without first making an
+SSH connection. A locked/missing Keychain item can still require interaction.
+Verification does not load a key or access Keychain.
+
+For local verification, `~/.ssh/git_allowed_signers` trusts this machine's public
+key for any of your Git identities (`*` principal), while retaining other entries.
+This verifies possession of your key; it does not enforce which email you use or
+prove a human reviewed a commit. An unlocked agent permits unattended signing.
+
+Register each machine's **public** key as a **Signing key** in
+[GitHub's SSH key settings](https://github.com/settings/ssh/new). With GitHub CLI
+installed and authenticated, the equivalent is:
+
+```sh
+gh auth refresh --hostname github.com --scopes write:ssh_signing_key
+gh ssh-key add ~/.ssh/id_ed25519_signing.pub --type signing --title "$(scutil --get ComputerName) Git signing"
+```
+
+The initializer configures local signing; it does not log in to GitHub or upload
+keys. Signing-key registration is separate from SSH authentication registration.
+See [GitHub's SSH signing instructions](https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key).
+To enroll from the editable checkout, run:
+
+```sh
+/bin/bash bootstrap.sh --component git-signing
+```
 
 ## Component status and repair
 
