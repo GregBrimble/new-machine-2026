@@ -37,7 +37,7 @@ The launcher uses tools shipped with macOS. It:
 Runtime setup precedes every mode, including previews. **On a fresh Mac,
 `--dry-run` and `--plan` can install Homebrew, Homebrew's mise, Node.js, and the
 runner's dependencies.** They do not apply appearance/Spotlight settings, install
-casks, or edit shell profiles. `--help` needs no runtime or downloads.
+configured formulae/casks, or edit shell profiles. `--help` needs no runtime or downloads.
 
 Homebrew's installer may ask for your administrator password,
 confirmation, and developer tools. Interactive installers use `/dev/tty` when
@@ -55,6 +55,7 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 - mise zsh completions supplied by Homebrew, with zsh completion initialization.
 - A `~/Developer` layout with `repos`, `worktrees`, and `tries` directories.
 - Ghostty, Spotify, VLC, and Google Chrome installed through Homebrew Bundle.
+- Apple's `container` CLI installed as a Homebrew formula, with its bundled shell completions.
 - Global Git `push.autoSetupRemote=true` so a branch's first push sets its upstream.
 - VLC playback at 2.35×, preferring English subtitles and falling back to any available track.
 - Background cleanup that moves old Downloads files to Trash after 30 days.
@@ -62,9 +63,9 @@ Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 - Spotlight Search Privacy exclusions for `~/Developer` and `/opt/homebrew`.
 
 The `shared` object is the base. `personal` and `cloudflare` profile overrides
-replace scalar values and append to the shared cask and exclusion arrays.
+replace scalar values and append to the shared formula, cask, and exclusion arrays.
 Paths must be absolute. Edit the shared exclusion array to `[]` to skip Spotlight
-automation. Casks are listed by their Homebrew names; the runner passes them as
+automation. Formulae and casks are listed by their Homebrew names; the runner passes them as
 an inline Brewfile to `brew bundle` through stdin, using Homebrew's default app
 location (`/Applications` unless configured otherwise).
 
@@ -75,12 +76,12 @@ or `.zshrc`. Set shared startup-directory choices in `.zshenv`. This resolution
 runs in every mode, including previews, and executes any commands in `.zshenv`.
 
 The runner inspects each resource, applies necessary changes, and verifies the
-result before proceeding to its dependents. Casks use `brew bundle check` and
+result before proceeding to its dependents. Packages use `brew bundle check` and
 `brew bundle install`, both with `--no-upgrade`, followed by another check.
 Bundle handles installation and adoption of matching manually installed apps;
 it checks Homebrew's installation records, so a manually deleted app may need
-`brew reinstall --cask <name>`. Removing a cask from this configuration leaves
-the app installed. Activation entries are appended only when their exact line
+`brew reinstall --cask <name>`. Removing a package from this configuration leaves
+it installed. Activation entries are appended only when their exact line
 is absent; existing contents are preserved.
 
 Git settings use `git config --global`, preserving other settings and identities.
@@ -97,6 +98,27 @@ configuration. Open a new login terminal after applying shell setup. The Node
 pin is selected explicitly for the runner through mise; other projects can
 select their own versions. Downloads cleanup runs as macOS background activity;
 the other settings are reconciled only when you invoke the initializer.
+
+## Containers
+
+The shared formula list installs [Apple's `container`](https://github.com/apple/container)
+through [Homebrew](https://formulae.brew.sh/formula/container). It requires Apple
+Silicon and macOS 26 or later. Start it on demand:
+
+```sh
+container system start
+container run --rm alpine echo hello
+```
+
+On first start, accept the prompt to download the recommended Linux kernel.
+Stop the service with `container system stop` when finished. Startup, networking,
+and resource settings use the tool's defaults. Homebrew supplies its shell
+completions; open a new login terminal after installation.
+
+It runs OCI images and builds Dockerfiles with `container build`. Docker API
+compatibility and Compose require additional community tooling; see Apple's
+[Docker API issue](https://github.com/apple/container/issues/66) and
+[Compose discussion](https://github.com/apple/container/discussions/194).
 
 ## Developer layout
 

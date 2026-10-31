@@ -22,10 +22,11 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
   const writes: string[] = [], commands: Command[] = [], logs: string[] = []
   const state = {
     dark: false, automatic: true, absentAutomatic: false, brew: true,
+    formulae: new Set<string>(),
     casks: new Set<string>(),
     autoSetupRemote: undefined as boolean | undefined,
     removeOldTrashItems: false,
-    installFailure: false, ineffectiveCask: false, checkFailure: false,
+    installFailure: false, ineffectivePackage: false, checkFailure: false,
     ineffectiveAppearance: false, deniedSpotlight: false, invalidDefaults: false, rootAlias: false
   }
   let reads = 0
@@ -89,15 +90,20 @@ function fixture(mise = "/mise with 'quotes'/bin/mise") {
         if (args[0] === "--version") return result("Homebrew fixture")
         assert.equal(args[0], "bundle")
         assert.deepEqual(args.slice(2), ["--no-upgrade", "--file=-"])
-        assert.equal(command.input, config.casks.map(name => `cask "${name}"\n`).join(""))
+        assert.equal(command.input,
+          [...config.formulae.map(name => `brew "${name}"\n`), ...config.casks.map(name => `cask "${name}"\n`)].join(""))
         if (args[1] === "check") {
           if (state.checkFailure) return result("", 2, "Bundle check failed")
-          return result("", config.casks.every(name => state.casks.has(name)) ? 0 : 1)
+          return result("", config.formulae.every(name => state.formulae.has(name)) && config.casks.every(name => state.casks.has(name)) ? 0 : 1)
         }
         assert.equal(args[1], "install")
         assert.equal(command.interactive, true)
-        if (state.installFailure) return result("", 1, "Cask installation failed")
-        if (!state.ineffectiveCask) {
+        if (state.installFailure) return result("", 1, "Package installation failed")
+        if (!state.ineffectivePackage) {
+          for (const name of config.formulae) if (!state.formulae.has(name)) {
+            state.formulae.add(name)
+            writes.push(`formula:${name}`)
+          }
           for (const name of config.casks) if (!state.casks.has(name)) {
             state.casks.add(name)
             writes.push(`cask:${name}`)
@@ -129,6 +135,7 @@ test("fresh application converges; repeated application preserves installations 
   assert.equal(f.state.removeOldTrashItems, true)
   for (const name of ["repos", "worktrees", "tries"]) assert.ok(f.directories.has(join(f.config.developerDirectory, name)))
   assert.equal(f.files.get(f.config.vlc.configPath), "[core]\nrate=2.35\nsub-language=en,any\n")
+  assert.deepEqual([...f.state.formulae], f.config.formulae)
   assert.deepEqual([...f.state.casks], f.config.casks)
   assert.equal(f.commands.filter(c => c.args[0] === "bundle" && c.args[1] === "install").length, 1)
   assert.deepEqual([...f.excluded], f.config.spotlightExcludedFolders)
@@ -157,30 +164,46 @@ test("preview does not query system state; plan observes without applying change
   assert.ok(f.logs.some(line => line.includes("[unknown] spotlight")))
 })
 
-test("satisfied Bundle skips installation and leaves unrelated casks installed", async () => {
+test("satisfied Bundle skips installation and leaves unrelated packages installed", async () => {
   const f = fixture()
+  for (const name of [...f.config.formulae, "another-tool"]) f.state.formulae.add(name)
   for (const name of [...f.config.casks, "another-app"]) f.state.casks.add(name)
   await f.run()
   assert.equal(f.commands.some(c => c.args.includes("install")), false)
   assert.ok(f.state.casks.has("another-app"))
+  assert.ok(f.state.formulae.has("another-tool"))
 })
 
-test("partially satisfied Bundle installs missing casks and verifies the result", async () => {
+test("partially satisfied Bundle installs missing formulae and casks and verifies the result", async () => {
   const f = fixture()
   f.state.casks.add("ghostty")
   await f.run()
   assert.deepEqual([...f.state.casks], f.config.casks)
+  assert.deepEqual([...f.state.formulae], f.config.formulae)
+  assert.ok(f.writes.includes("formula:container"))
   assert.equal(f.writes.includes("cask:ghostty"), false)
   assert.ok(f.writes.includes("cask:spotify"))
   const bundle = f.commands.filter(c => c.args[0] === "bundle")
   assert.deepEqual(bundle.map(c => c.args[1]), ["check", "install", "check"])
 })
 
-test("empty cask list needs no installation", async () => {
-  const f = fixture(); f.config.casks = []
+test("empty package lists need no installation", async () => {
+  const f = fixture(); f.config.formulae = []; f.config.casks = []
   await f.run()
   assert.equal(f.commands.some(c => c.args.includes("install")), false)
 })
+
+for (const field of ["formulae", "casks"] as const) {
+  test(`Bundle installs ${field} when the other package list is empty`, async () => {
+    const f = fixture()
+    f.config[field === "formulae" ? "casks" : "formulae"] = []
+    await f.run()
+    assert.deepEqual([...f.state[field]], f.config[field])
+    f.commands.length = 0
+    await f.run()
+    assert.equal(f.commands.some(c => c.args.includes("install")), false)
+  })
+}
 
 test("a Bundle check error stops installation", async () => {
   const f = fixture(); f.state.checkFailure = true
@@ -242,12 +265,12 @@ test("zsh loads mise completions in a fresh shell and alongside an existing comp
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
-for (const failure of ["installFailure", "ineffectiveCask"] as const) {
-  test(`${failure} is not reported as a successful cask installation`, async () => {
+for (const failure of ["installFailure", "ineffectivePackage"] as const) {
+  test(`${failure} is not reported as a successful package installation`, async () => {
     const f = fixture(); f.state.brew = true; f.state[failure] = true
     await assert.rejects(f.run())
     assert.equal(f.excluded.size, 0)
-    assert.equal(f.logs.includes("[applied] casks"), false)
+    assert.equal(f.logs.includes("[applied] homebrew-bundle"), false)
     assert.equal(f.files.has(f.config.vlc.configPath), false)
   })
 }
@@ -292,10 +315,12 @@ test("profiles share the base and use the resolved zsh directory; invalid exclus
   }
 })
 
-test("cask names must be safe to embed in a Brewfile", () => {
-  const config = configuration("/Users/test", "/Users/test", "shared")
-  for (const name of ['ghostty"\nsystem "unexpected"', "#{1 + 1}", "--force", "vlc\n"]) {
-    config.casks = [name]
-    assert.throws(() => validateConfiguration(config), /Invalid cask/u)
-  }
-})
+for (const field of ["formulae", "casks"] as const) {
+  test(`${field} names must be safe to embed in a Brewfile`, () => {
+    const config = configuration("/Users/test", "/Users/test", "shared")
+    for (const name of ['ghostty"\nsystem "unexpected"', "#{1 + 1}", "--force", "vlc\n"]) {
+      config[field] = [name]
+      assert.throws(() => validateConfiguration(config), /Invalid (formula|cask)/u)
+    }
+  })
+}

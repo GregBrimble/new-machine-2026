@@ -43,13 +43,15 @@ a partial download is preserved, under the background process's own permissions.
 A permission failure fails the test and keeps the VM available for inspection.
 
 Checks cover the pinned Node version, Homebrew-owned mise, zsh activation and
-completions, application bundles and Homebrew receipts, dark appearance, Git,
+completions, the Apple container CLI, application bundles and Homebrew receipts, dark appearance, Git,
 VLC, the Developer directories, Finder's Trash preference, configuration file
 hashes, package versions, and background helper startup. Repeat application must
 leave those files and package versions unchanged; only Spotlight's ensure step
 is expected to report application again. The test checks scheduler registration
 and actual background file access; it does not wait for macOS's discretionary
 24-hour activity or Finder's 30-day retention period.
+The container check runs `container --version`; running Linux containers inside
+this macOS guest would require nested virtualization and is outside this test.
 
 Logs, snapshots, the checkout commit/diff, and a snapshot hash are saved in the
 printed temporary artifacts directory. Published mode tests the moving public

@@ -11,6 +11,7 @@ import { vlcSettings } from "./vlc.ts"
 import { downloadsCleanup } from "./downloads.ts"
 import { trashSettings } from "./trash.ts"
 import { developerDirectories } from "./developer.ts"
+import { homebrewBundle } from "./homebrew.ts"
 
 const spotlightScript = readFileSync(new URL("./spotlight.applescript", import.meta.url), "utf8")
 const quote = (text: string) => /^[a-zA-Z0-9_/.+-]+$/u.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`
@@ -71,21 +72,6 @@ function profileEntry(system: System, id: string, path: string, line: string): R
       if (!text.split(/\r?\n/u).includes(line)) yield* system.writeText(path, `${text}${text.endsWith("\n") || !text ? "" : "\n"}\n# ${id}\n${line}\n`)
     }),
     verify: () => verifyObservation(id, inspect)
-  }
-}
-
-function casks(system: System, names: Configuration["casks"], brew: string): Resource {
-  const input = names.map(name => `cask "${name}"\n`).join("")
-  const description = `Ensure Homebrew casks: ${names.join(", ") || "none"}`
-  const inspect = () => Effect.gen(function* () {
-    const result = yield* system.run({ file: brew, args: ["bundle", "check", "--no-upgrade", "--file=-"], input })
-    if (result.code !== 0 && result.code !== 1) return yield* Effect.fail(new BootstrapError("Homebrew Bundle", result.stderr || `Check exited with status ${result.code}`))
-    return observation(result.code === 0, description)
-  })
-  return {
-    id: "casks", description, inspect,
-    apply: () => checked(system, { file: brew, args: ["bundle", "install", "--no-upgrade", "--file=-"], input, interactive: true }).pipe(Effect.asVoid),
-    verify: () => verifyObservation("casks", inspect)
   }
 }
 
@@ -160,7 +146,7 @@ export function resources(system: System, config: Configuration, { brew, mise }:
     profileEntry(system, "mise", config.miseProfile, `eval "$(${quote(mise)} activate zsh)"`),
     zshCompletions(system, config.miseProfile, mise),
     gitSettings(system, config.git.autoSetupRemote),
-    casks(system, config.casks, brew),
+    homebrewBundle(system, config, brew),
     vlcSettings(system, config.vlc),
     downloadsCleanup(system, config.downloadsCleanup),
     trashSettings(system, config.trash.removeAfter30Days),

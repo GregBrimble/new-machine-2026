@@ -6,6 +6,7 @@ export interface Configuration {
   homebrewProfile: string
   miseProfile: string
   developerDirectory: string
+  formulae: ReadonlyArray<string>
   casks: ReadonlyArray<string>
   git: { autoSetupRemote: boolean }
   vlc: { configPath: string; playbackRate: number; subtitleLanguage: string }
@@ -21,6 +22,7 @@ export function configuration(home: string, zshDirectory: string, profile: Profi
     homebrewProfile: join(zshDirectory, ".zprofile"),
     miseProfile: join(zshDirectory, ".zshrc"),
     developerDirectory: join(home, "Developer"),
+    formulae: ["container"],
     casks: ["ghostty", "spotify", "vlc", "google-chrome"],
     git: { autoSetupRemote: true },
     vlc: {
@@ -47,6 +49,7 @@ export function configuration(home: string, zshDirectory: string, profile: Profi
   return {
     ...shared,
     ...extra,
+    formulae: [...shared.formulae, ...(extra.formulae ?? [])],
     casks: [...shared.casks, ...(extra.casks ?? [])],
     spotlightExcludedFolders: [...new Set([...shared.spotlightExcludedFolders, ...(extra.spotlightExcludedFolders ?? [])])]
   }
@@ -68,7 +71,9 @@ export function validateConfiguration(config: Configuration): void {
   for (const path of config.spotlightExcludedFolders) {
     if (!isAbsolute(path) || /^\/+$/u.test(path)) throw new Error(`Invalid Spotlight folder: ${path}`)
   }
-  for (const cask of config.casks) {
-    if (!/^[a-z0-9][a-z0-9+@._-]*$/u.test(cask)) throw new Error(`Invalid cask: ${cask}`)
+  for (const [kind, names] of [["formula", config.formulae], ["cask", config.casks]] as const) {
+    for (const name of names) {
+      if (!/^[a-z0-9][a-z0-9+@._-]*$/u.test(name)) throw new Error(`Invalid ${kind}: ${name}`)
+    }
   }
 }

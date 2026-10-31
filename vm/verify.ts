@@ -32,7 +32,9 @@ else {
 assert.equal(run("/usr/bin/defaults", ["read", "com.apple.finder", "FXRemoveOldTrashItems"]), "1")
 assert.equal(run("/usr/bin/git", ["config", "--global", "--type=bool", "--get", "push.autoSetupRemote"]), "true")
 for (const name of ["repos", "worktrees", "tries"]) assert.ok(statSync(join(config.developerDirectory, name)).isDirectory())
-run(brew, ["bundle", "check", "--no-upgrade", "--file=-"], config.casks.map(name => `cask "${name}"\n`).join(""))
+run(brew, ["bundle", "check", "--no-upgrade", "--file=-"],
+  [...config.formulae.map(name => `brew "${name}"\n`), ...config.casks.map(name => `cask "${name}"\n`)].join(""))
+assert.ok(run(join(run(brew, ["--prefix", "container"]), "bin/container"), ["--version"]), "Apple container CLI runs")
 for (const app of ["Ghostty", "Spotify", "VLC", "Google Chrome"]) {
   assert.ok(statSync(`/Applications/${app}.app/Contents/Info.plist`).isFile(), `${app} is installed`)
 }
