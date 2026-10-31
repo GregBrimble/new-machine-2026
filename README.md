@@ -1,72 +1,125 @@
 # New machine 2026
 
-A single macOS bootstrap script with its configuration inline. It ensures:
-
-- Dark appearance with automatic light/dark switching disabled.
-- Homebrew, using its [official installer](https://docs.brew.sh/Installation) when missing.
-- A Homebrew `shellenv` entry in your zsh login profile, appended once.
-- [Ghostty](https://ghostty.org/docs/install/binary), using `brew install --cask ghostty`.
-- Spotlight Search Privacy exclusions for the folders in
-  `SPOTLIGHT_EXCLUDED_FOLDERS`, initially `~/Developer` and `/opt/homebrew`.
-
-Existing installations are kept without upgrading them. If Homebrew records
-Ghostty as installed but its app executable is missing, the script reinstalls the
-cask. An existing executable at the configured app destination is kept, including
-a manually installed Ghostty.
-
-Edit the configuration at the top of `bootstrap.sh`: `APPEARANCE`,
-`HOMEBREW_SHELL_PROFILE` (defaults to `${ZDOTDIR:-$HOME}/.zprofile`), and
-`GHOSTTY_APP_DIR` (defaults to `/Applications`). If you use another shell, choose
-its appropriate startup file for `HOMEBREW_SHELL_PROFILE`; the generated entry
-works with zsh and Bash.
-
-Edit `SPOTLIGHT_EXCLUDED_FOLDERS` to change the folder list, or use `()` to skip
-Spotlight automation. Listed folders are created if missing. Exclusions are
-added through System Settings without renaming folders; macOS deduplicates
-repeated additions by path. Existing exclusions are preserved. Removing an entry
-from this array does not re-enable its indexing; remove it from Search Privacy
-in System Settings when you want that.
-
-The UI automation targets **English System Settings on macOS Tahoe (26)**.
-It opens the Spotlight pane and operates its folder picker. Allow your terminal
-to control System Events and System Settings under Privacy & Security > Automation,
-and enable your terminal under Privacy & Security > Accessibility. Leave System
-Settings and the keyboard alone while this step runs. A missing control, denied
-permission, or an unaccepted folder stops the script with an error.
-
-```sh
-/bin/bash bootstrap.sh --dry-run
-/bin/bash bootstrap.sh
-```
-
-Run as your normal user. macOS may ask permission for your terminal to control
-System Events. Homebrew's installer may request your administrator password,
-confirmation, and developer tools. Interactive prompts use the terminal even
-when you pipe this script into Bash. Headless runs follow the installer's
-non-interactive behavior and need any required privileges provisioned beforehand.
-
-An error stops the script; fix the cause and rerun. A preview describes the
-desired state without querying System Events, downloading installers, or writing
-files. Open a new login terminal after running so it picks up Homebrew's profile
-entry. The script does not create a background service.
+A macOS configurator written in TypeScript with Effect. A small Bash entry point
+prepares its runtime on a brand new Mac, then runs the configuration.
 
 ## Run from GitHub
 
-Download and run the latest script:
+Run as your normal user:
 
 ```sh
 curl --fail --silent --show-error --location \
-  'https://raw.githubusercontent.com/GregBrimble/new-machine-2026/main/bootstrap.sh' --output bootstrap.sh &&
-  /bin/bash bootstrap.sh
+  'https://raw.githubusercontent.com/GregBrimble/new-machine-2026/main/bootstrap.sh' |
+  /bin/bash -s --
 ```
 
-Or execute directly from the response:
+For a personal or Cloudflare machine, append `--profile personal` or
+`--profile cloudflare` after `--`. Both currently use the shared configuration;
+their editable overrides start empty.
+
+The launcher uses tools shipped with macOS. It:
+
+1. Downloads the repository as a GitHub archive when run outside a checkout.
+   Git, Xcode, and Command Line Tools are not needed to fetch the runner.
+2. Reuses mise from PATH, `~/.local/bin`, or a standard Homebrew prefix. If
+   missing, installs mise v2026.10.25 to `~/.local/bin/mise` using its
+   [official installer](https://mise.jdx.dev/installing-mise.html).
+3. Uses `mise exec` to install/select **Node.js 24.22.2**, pinned in
+   `.node-version`. This version runs the TypeScript source directly.
+4. Installs locked production dependencies with `npm ci --omit=dev
+   --ignore-scripts`, then runs the Effect configurator.
+
+Runtime setup precedes every mode, including previews. **On a fresh Mac,
+`--dry-run` and `--plan` can download/install mise, Node.js, and the runner's
+dependencies.** They do not apply machine settings, install Homebrew/casks, or
+edit shell profiles. `--help` needs no runtime or downloads.
+
+Homebrew's installer may subsequently ask for your administrator password,
+confirmation, and developer tools. Interactive installers use `/dev/tty` when
+available, including when this launcher is curl-piped. Headless runs inherit
+stdin and need any required privileges provisioned beforehand.
+
+## Configuration
+
+Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
+
+- Dark appearance with automatic light/dark switching disabled.
+- Homebrew installed through its official installer when missing.
+- A Homebrew `shellenv` entry in `${ZDOTDIR:-$HOME}/.zprofile`.
+- mise activation in `${ZDOTDIR:-$HOME}/.zshrc`.
+- Ghostty installed in `/Applications` through Homebrew.
+- Spotlight Search Privacy exclusions for `~/Developer` and `/opt/homebrew`.
+
+The `shared` object is the base. `personal` and `cloudflare` profile overrides
+replace scalar values and append to the shared cask and exclusion arrays.
+Paths must be absolute. Edit the shared exclusion array to `[]` to skip Spotlight
+automation. Each cask specifies its Homebrew name, app bundle, and executable
+within the bundle, so the runner can verify installation.
+
+The runner inspects each resource, applies necessary changes, and verifies the
+result before proceeding to its dependents. Existing Homebrew and apps are kept
+without upgrading. An executable Ghostty installation is kept even if installed
+manually. A recorded cask whose app executable is missing is repaired using
+`brew reinstall`. Profile entries are appended only when their exact line is
+absent; existing contents are preserved.
+
+An error stops the run. Fix the cause and rerun to reconcile the remaining
+configuration. Open a new login terminal after applying shell setup. The Node
+pin is selected explicitly for the runner through mise; other projects can
+select their own versions. Nothing runs automatically between invocations.
+
+## Preview and inspect
+
+From a checkout:
 
 ```sh
-curl --fail --silent --show-error --location \
-  'https://raw.githubusercontent.com/GregBrimble/new-machine-2026/main/bootstrap.sh' | /bin/bash -s --
+/bin/bash bootstrap.sh --dry-run
+/bin/bash bootstrap.sh --plan --profile cloudflare
+/bin/bash bootstrap.sh --profile personal
 ```
 
-To preview the hosted script, add `--dry-run` after `--` in the second example.
-Rerun the command whenever you update the hosted configuration or want to repair
-local drift. Nothing runs automatically between invocations.
+From the hosted entry point, pass the same options after `/bin/bash -s --`.
+
+- `--dry-run` prints the desired operations without inspecting machine settings
+  or invoking System Events. Runtime preparation still happens as described above.
+- `--plan` inspects current state and reports `ok`, `change`, or `unknown`,
+  without applying machine configuration. Reading appearance may require
+  Automation permission. Resources depending on a missing Homebrew installation
+  can remain `unknown` until it is installed.
+- With neither flag, the runner inspects, applies, and verifies resources in order.
+
+## Spotlight automation
+
+macOS does not expose a supported folder-level CLI for Search Privacy. The
+runner reports this state as `unknown` in its plan, then uses System Settings to
+ensure each configured exclusion during application. The folder picker
+deduplicates repeated additions by path. Listed folders are created if missing;
+existing exclusions are preserved. Removing a folder from the configuration does
+not re-enable indexing: remove it from Search Privacy in System Settings.
+
+The AppleScript targets **English System Settings on macOS Tahoe (26)**. Allow
+your terminal to control System Events and System Settings under Privacy &
+Security > Automation, and enable it under Privacy & Security > Accessibility.
+Leave System Settings and the keyboard alone during this step. Missing controls,
+denied permission, or an unaccepted folder fail the run. Verification happens
+inside the picker automation; an independent folder-level state query is
+unavailable.
+
+## Development
+
+```sh
+mise exec "node@$(cat .node-version)" -- npm ci --ignore-scripts
+mise exec "node@$(cat .node-version)" -- npm run check
+mise exec "node@$(cat .node-version)" -- npm test
+```
+
+Effect and development dependencies are pinned in `package-lock.json`. There is
+no transpilation step. Tests cover resource convergence, failure handling,
+process/filesystem adapters, and the shell entry point with simulated missing
+tools and failed downloads. They do not change the host's settings or install
+Homebrew or Ghostty.
+
+Local bootstrap runs reuse dependencies when the lockfile fingerprint matches.
+Hosted runs unpack into a temporary directory, use npm's cache under
+`~/Library/Caches/new-machine-2026/npm`, and clean up the unpacked source and
+dependencies on exit. mise and its installed Node version persist for reuse.

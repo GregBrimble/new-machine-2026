@@ -1,0 +1,196 @@
+import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
+import test from "node:test"
+import { Effect } from "effect"
+import { configuration, validateConfiguration } from "../src/config.ts"
+import { resources } from "../src/resources/index.ts"
+import { reconcile } from "../src/runner.ts"
+import type { Mode } from "../src/runner.ts"
+import type { Command, CommandResult, System } from "../src/system.ts"
+
+function fixture() {
+  const config = configuration("/Users/test person", {}, "shared")
+  config.appDirectory = "/Applications with spaces"
+  const brew = "/prefix with spaces/bin/brew"
+  const ghostty = `${config.appDirectory}/Ghostty.app/Contents/MacOS/ghostty`
+  const files = new Map<string, string>()
+  const directories = new Set<string>()
+  const excluded = new Set<string>()
+  const writes: string[] = [], commands: Command[] = [], logs: string[] = []
+  const state = {
+    dark: false, automatic: true, absentAutomatic: false, brew: false, ghostty: false, cask: false,
+    downloadFailure: false, installFailure: false, ineffectiveBrew: false, ineffectiveCask: false,
+    ineffectiveAppearance: false, deniedSpotlight: false, invalidDefaults: false, rootAlias: false
+  }
+  let reads = 0
+  const result = (stdout = "", code = 0, stderr = ""): CommandResult => ({ stdout, code, stderr })
+  const system: System = {
+    homebrewCandidates: [brew],
+    run: command => Effect.sync(() => {
+      commands.push(command)
+      const args = command.args
+      if (command.file === "osascript") {
+        if (args[0] === "-") {
+          assert.match(command.input ?? "", /on run folderPaths/u)
+          if (state.deniedSpotlight) return result("", 1, "Enable Accessibility for your terminal")
+          for (const path of args.slice(1)) if (!excluded.has(path)) { excluded.add(path); writes.push(`exclude:${path}`) }
+          return result()
+        }
+        if (args[1].includes("get dark mode")) return result(String(state.dark))
+        if (!state.ineffectiveAppearance) { state.dark = args[1].endsWith("true"); writes.push("appearance") }
+        return result()
+      }
+      if (command.file === "defaults") {
+        if (args[0] === "read") {
+          if (state.invalidDefaults) return result("", 1, "Permission denied")
+          if (state.absentAutomatic) return result("", 1, "The domain/default pair does not exist")
+          return result(state.automatic ? "1" : "0")
+        }
+        state.automatic = false; writes.push("automatic"); return result()
+      }
+      if (command.file === "curl") return state.downloadFailure ? result("", 22, "Download failed") : result("official installer")
+      if (command.file === "/bin/bash") {
+        assert.equal(command.interactive, true)
+        assert.equal(args[1], "official installer")
+        if (state.installFailure) return result("", 1, "Installer failed")
+        if (!state.ineffectiveBrew) { state.brew = true; writes.push("homebrew") }
+        return result()
+      }
+      if (command.file === brew) {
+        assert.equal(state.brew, true)
+        if (args[0] === "--version") return result("Homebrew fixture")
+        if (args[0] === "list") return result("", state.cask ? 0 : 1)
+        assert.ok(args[0] === "install" || args[0] === "reinstall")
+        assert.equal(command.interactive, true)
+        assert.equal(args[2], `--appdir=${config.appDirectory}`)
+        if (state.installFailure) return result("", 1, "Cask installation failed")
+        if (!state.ineffectiveCask) { state.ghostty = true; state.cask = true; writes.push(`ghostty:${args[0]}`) }
+        return result()
+      }
+      throw new Error(`Unexpected command: ${command.file} ${args.join(" ")}`)
+    }),
+    executable: path => Effect.sync(() => { reads++; return path === brew ? state.brew : path === ghostty && state.ghostty }),
+    readText: path => Effect.sync(() => { reads++; return files.get(path) }),
+    writeText: (path, text) => Effect.sync(() => { files.set(path, text); writes.push(`profile:${path}`) }),
+    mkdir: path => Effect.sync(() => { if (!directories.has(path)) { directories.add(path); writes.push(`mkdir:${path}`) } }),
+    realpath: path => Effect.sync(() => state.rootAlias ? "/" : path)
+  }
+  const run = (mode: Mode = "apply") => Effect.runPromise(reconcile(resources(system, config, "/mise with 'quotes'/bin/mise"), mode, text => logs.push(text)))
+  return { config, state, files, directories, excluded, writes, commands, logs, run, reads: () => reads }
+}
+
+test("fresh application converges; repeated application preserves installations and profile bytes", async () => {
+  const f = fixture()
+  f.files.set(f.config.homebrewProfile, "# existing content without a final newline")
+  await f.run()
+  assert.equal(f.state.dark, true)
+  assert.equal(f.state.automatic, false)
+  assert.equal(f.state.brew, true)
+  assert.equal(f.state.ghostty, true)
+  assert.deepEqual([...f.excluded], f.config.spotlightExcludedFolders)
+  assert.match(f.files.get(f.config.homebrewProfile)!, /^# existing content without a final newline\n/u)
+  for (const profile of [f.config.homebrewProfile, f.config.miseProfile]) {
+    const parsed = spawnSync("/bin/zsh", ["-n"], { input: f.files.get(profile), encoding: "utf8" })
+    assert.equal(parsed.status, 0, parsed.stderr)
+  }
+  const before = [...f.files]
+  f.writes.length = 0; f.commands.length = 0
+  await f.run()
+  assert.deepEqual(f.writes, [])
+  assert.deepEqual([...f.files], before)
+  assert.equal(f.commands.some(c => c.file === "curl" || c.args[0] === "install" || c.args[0] === "reinstall"), false)
+})
+
+test("preview does not query system state; plan observes without applying changes or opening Search Privacy", async () => {
+  const f = fixture()
+  await f.run("preview")
+  assert.equal(f.commands.length, 0)
+  assert.equal(f.reads(), 0)
+  assert.deepEqual(f.writes, [])
+  await f.run("plan")
+  assert.deepEqual(f.writes, [])
+  assert.equal(f.commands.some(c => c.args[0] === "-"), false)
+  assert.ok(f.logs.some(line => line.includes("[unknown] spotlight")))
+  assert.ok(f.logs.some(line => line.includes("Requires Homebrew")))
+})
+
+test("existing manually installed Ghostty is kept", async () => {
+  const f = fixture()
+  f.state.brew = true; f.state.ghostty = true
+  await f.run()
+  assert.equal(f.commands.some(c => c.args.includes("--cask")), false)
+})
+
+test("missing app with an existing cask record is repaired with reinstall", async () => {
+  const f = fixture()
+  f.state.brew = true; f.state.cask = true
+  await f.run()
+  assert.ok(f.writes.includes("ghostty:reinstall"))
+})
+
+test("an absent automatic appearance key means switching is disabled", async () => {
+  const f = fixture()
+  f.state.absentAutomatic = true; f.state.dark = true
+  await f.run()
+  assert.equal(f.writes.includes("automatic"), false)
+  assert.equal(f.writes.includes("appearance"), false)
+})
+
+for (const failure of ["downloadFailure", "ineffectiveBrew", "ineffectiveAppearance", "invalidDefaults"] as const) {
+  test(`${failure} stops dependent changes`, async () => {
+    const f = fixture(); f.state[failure] = true
+    await assert.rejects(f.run())
+    assert.equal(f.state.ghostty, false)
+    assert.equal(f.files.size, 0)
+    assert.equal(f.excluded.size, 0)
+  })
+}
+
+for (const failure of ["installFailure", "ineffectiveCask"] as const) {
+  test(`${failure} is not reported as a successful cask installation`, async () => {
+    const f = fixture(); f.state.brew = true; f.state[failure] = true
+    await assert.rejects(f.run())
+    assert.equal(f.excluded.size, 0)
+    assert.equal(f.logs.includes("[applied] cask:ghostty"), false)
+  })
+}
+
+test("denied Accessibility is surfaced without reporting Spotlight success", async () => {
+  const f = fixture(); f.state.deniedSpotlight = true
+  await assert.rejects(f.run(), /Accessibility/u)
+  assert.equal(f.excluded.size, 0)
+  assert.equal(f.logs.includes("[applied] spotlight"), false)
+})
+
+test("empty exclusion list skips Spotlight automation; existing exclusions are preserved", async () => {
+  const f = fixture()
+  f.config.spotlightExcludedFolders = []
+  f.excluded.add("/existing exclusion")
+  await f.run()
+  assert.deepEqual([...f.excluded], ["/existing exclusion"])
+  assert.equal(f.commands.some(c => c.args[0] === "-"), false)
+  assert.equal(f.directories.size, 0)
+})
+
+test("a configured folder resolving to filesystem root fails before exclusion", async () => {
+  const f = fixture(); f.state.rootAlias = true
+  await assert.rejects(f.run(), /filesystem root/u)
+  assert.equal(f.excluded.size, 0)
+})
+
+test("light appearance is supported", async () => {
+  const f = fixture(); f.state.dark = true; f.config.appearance = "light"
+  await f.run()
+  assert.equal(f.state.dark, false)
+})
+
+test("profiles share the base and honor ZDOTDIR; invalid exclusions fail validation", () => {
+  for (const profile of ["shared", "personal", "cloudflare"] as const) {
+    const config = configuration("/Users/test", { ZDOTDIR: "/Users/test/zsh config" }, profile)
+    assert.equal(config.homebrewProfile, "/Users/test/zsh config/.zprofile")
+    assert.equal(config.miseProfile, "/Users/test/zsh config/.zshrc")
+    validateConfiguration(config)
+    config.spotlightExcludedFolders = ["/"]
+    assert.throws(() => validateConfiguration(config), /Spotlight/u)
+  }
+})

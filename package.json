@@ -1,0 +1,20 @@
+{
+  "name": "new-machine-2026",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.22.2 <25"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "check": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "effect": "4.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}
