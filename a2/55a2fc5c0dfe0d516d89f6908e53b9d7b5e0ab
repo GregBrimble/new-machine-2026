@@ -1,0 +1,19 @@
+README.md
+  s_790125743e562e::t_2af6c7b1f1eb51 24-30,32,36-38,40,50,53,67,91-92,129-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a255a2fc5c0dfe0d516d89f6908e53b9d7b5e0ab",
+  "prompts": {},
+  "sessions": {
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
