@@ -79,7 +79,13 @@ bootstrap() {
 }
 
 if [[ "$stage" == first ]]; then
+  # Exercise encrypted key creation and Keychain storage with a guest-only fixture.
+  (umask 077; /usr/bin/openssl rand -base64 32 > "$workspace/signing-passphrase")
+  chmod 700 "$workspace/vm/signing-askpass.sh"
+  export SSH_ASKPASS="$workspace/vm/signing-askpass.sh" SSH_ASKPASS_REQUIRE=force
   bootstrap 2>&1 | tee "$results/bootstrap-first.log"
+  unset SSH_ASKPASS SSH_ASKPASS_REQUIRE
+  rm "$workspace/signing-passphrase"
   verify first
   bootstrap 2>&1 | tee "$results/bootstrap-repeat.log"
   verify repeat

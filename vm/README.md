@@ -36,10 +36,12 @@ Finder, use Go > Go to Folder to open:
 Follow the Terminal instructions: allow Automation prompts, enable Terminal's
 Accessibility access, and leave the keyboard and System Settings alone during
 Search Privacy automation. Grant any normal Downloads permission prompts.
-Choose a disposable passphrase when SSH signing key generation asks, then enter
-it again to save it in the guest's Keychain. No GitHub account or key upload is
-needed: the test checks signing and verification locally. After restart, its
-first signed commit exercises the signing helper's Keychain reload.
+The guest generates a disposable signing passphrase and supplies it through
+OpenSSH's askpass interface for key creation and Keychain storage. It removes
+the passphrase file and askpass environment before verification and repeat
+application. No GitHub account or key upload is needed: the test checks signing
+and verification locally. After restart, its first signed commit exercises the
+signing helper's Keychain reload without askpass.
 Finally, visually check both Search Privacy exclusions and type `yes`. macOS has
 no supported folder-level API for independently reading that exclusion list.
 The test never edits the TCC database or disables SIP to bypass these steps.
