@@ -21,20 +21,23 @@ The launcher uses tools shipped with macOS. It:
 
 1. Downloads the repository as a GitHub archive when run outside a checkout.
    Git, Xcode, and Command Line Tools are not needed to fetch the runner.
-2. Reuses mise from PATH, `~/.local/bin`, or a standard Homebrew prefix. If
-   missing, installs mise v2026.10.25 to `~/.local/bin/mise` using its
-   [official installer](https://mise.jdx.dev/installing-mise.html).
-3. Uses `mise exec` to install/select **Node.js 24.22.2**, pinned in
+2. Reuses Homebrew from PATH or a standard prefix. If missing, installs it with
+   its [official installer](https://docs.brew.sh/Installation).
+3. Installs mise with `brew install mise` if needed, repairing the formula with
+   `brew reinstall mise` if its executable or zsh completion is missing. The
+   runner uses Homebrew's stable `opt/mise/bin/mise` path, including when another
+   mise is on PATH. Homebrew owns mise and its bundled completions.
+4. Uses `mise exec` to install/select **Node.js 24.22.2**, pinned in
    `.node-version`. This version runs the TypeScript source directly.
-4. Installs locked production dependencies with `npm ci --omit=dev
+5. Installs locked production dependencies with `npm ci --omit=dev
    --ignore-scripts`, then runs the Effect configurator.
 
 Runtime setup precedes every mode, including previews. **On a fresh Mac,
-`--dry-run` and `--plan` can download/install mise, Node.js, and the runner's
-dependencies.** They do not apply machine settings, install Homebrew/casks, or
-edit shell profiles. `--help` needs no runtime or downloads.
+`--dry-run` and `--plan` can install Homebrew, Homebrew's mise, Node.js, and the
+runner's dependencies.** They do not apply appearance/Spotlight settings, install
+casks, or edit shell profiles. `--help` needs no runtime or downloads.
 
-Homebrew's installer may subsequently ask for your administrator password,
+Homebrew's installer may ask for your administrator password,
 confirmation, and developer tools. Interactive installers use `/dev/tty` when
 available, including when this launcher is curl-piped. Headless runs inherit
 stdin and need any required privileges provisioned beforehand.
@@ -44,9 +47,10 @@ stdin and need any required privileges provisioned beforehand.
 Edit the ordinary TypeScript data in [`src/config.ts`](src/config.ts):
 
 - Dark appearance with automatic light/dark switching disabled.
-- Homebrew installed through its official installer when missing.
+- Homebrew prepared by the shell launcher and verified by the Effect runner.
 - A Homebrew `shellenv` entry in `${ZDOTDIR:-$HOME}/.zprofile`.
 - mise activation in `${ZDOTDIR:-$HOME}/.zshrc`.
+- mise zsh completions supplied by Homebrew, with zsh completion initialization.
 - Ghostty installed in `/Applications` through Homebrew.
 - Spotlight Search Privacy exclusions for `~/Developer` and `/opt/homebrew`.
 
@@ -60,7 +64,7 @@ The runner inspects each resource, applies necessary changes, and verifies the
 result before proceeding to its dependents. Existing Homebrew and apps are kept
 without upgrading. An executable Ghostty installation is kept even if installed
 manually. A recorded cask whose app executable is missing is repaired using
-`brew reinstall`. Profile entries are appended only when their exact line is
+`brew reinstall`. Activation entries are appended only when their exact line is
 absent; existing contents are preserved.
 
 An error stops the run. Fix the cause and rerun to reconcile the remaining
@@ -84,8 +88,8 @@ From the hosted entry point, pass the same options after `/bin/bash -s --`.
   or invoking System Events. Runtime preparation still happens as described above.
 - `--plan` inspects current state and reports `ok`, `change`, or `unknown`,
   without applying machine configuration. Reading appearance may require
-  Automation permission. Resources depending on a missing Homebrew installation
-  can remain `unknown` until it is installed.
+  Automation permission. Spotlight remains `unknown` because macOS has no
+  supported folder-level exclusion query.
 - With neither flag, the runner inspects, applies, and verifies resources in order.
 
 ## Spotlight automation
@@ -122,4 +126,19 @@ Homebrew or Ghostty.
 Local bootstrap runs reuse dependencies when the lockfile fingerprint matches.
 Hosted runs unpack into a temporary directory, use npm's cache under
 `~/Library/Caches/new-machine-2026/npm`, and clean up the unpacked source and
-dependencies on exit. mise and its installed Node version persist for reuse.
+dependencies on exit. Homebrew, mise, and its installed Node version persist for reuse.
+
+## Zsh completions and updates
+
+The bootstrap runs under Bash; it configures future zsh sessions in `.zshrc`.
+It adds Homebrew's mise completion directory to `fpath` before existing shell
+configuration, then initializes completion at the end only if `compdef` is not
+already defined. Existing frameworks can initialize completion themselves.
+mise's completion is explicitly registered, including when a prior completion
+cache exists. The two marked completion blocks are updated in place on reruns;
+other startup-file contents are preserved. No separate completion package is needed.
+
+Update mise with `brew upgrade mise`; Node and other tools are still managed by
+mise. Upstream notes that the Homebrew build can be larger and slower than its
+optimized release binary, and package-manager releases can lag upstream. See
+[mise installation methods](https://mise.jdx.dev/installing-mise.html).

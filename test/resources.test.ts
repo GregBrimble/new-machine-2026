@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { dirname, join } from "node:path"
 import test from "node:test"
 import { Effect } from "effect"
 import { configuration, validateConfiguration } from "../src/config.ts"
@@ -8,18 +11,19 @@ import { reconcile } from "../src/runner.ts"
 import type { Mode } from "../src/runner.ts"
 import type { Command, CommandResult, System } from "../src/system.ts"
 
-function fixture() {
+function fixture(mise = "/mise with 'quotes'/bin/mise") {
   const config = configuration("/Users/test person", {}, "shared")
   config.appDirectory = "/Applications with spaces"
   const brew = "/prefix with spaces/bin/brew"
   const ghostty = `${config.appDirectory}/Ghostty.app/Contents/MacOS/ghostty`
-  const files = new Map<string, string>()
+  const completion = join(dirname(dirname(mise)), "share/zsh/site-functions/_mise")
+  const files = new Map<string, string>([[completion, "#compdef mise\nreturn 0\n"]])
   const directories = new Set<string>()
   const excluded = new Set<string>()
   const writes: string[] = [], commands: Command[] = [], logs: string[] = []
   const state = {
-    dark: false, automatic: true, absentAutomatic: false, brew: false, ghostty: false, cask: false,
-    downloadFailure: false, installFailure: false, ineffectiveBrew: false, ineffectiveCask: false,
+    dark: false, automatic: true, absentAutomatic: false, brew: true, ghostty: false, cask: false,
+    installFailure: false, ineffectiveCask: false,
     ineffectiveAppearance: false, deniedSpotlight: false, invalidDefaults: false, rootAlias: false
   }
   let reads = 0
@@ -48,14 +52,6 @@ function fixture() {
         }
         state.automatic = false; writes.push("automatic"); return result()
       }
-      if (command.file === "curl") return state.downloadFailure ? result("", 22, "Download failed") : result("official installer")
-      if (command.file === "/bin/bash") {
-        assert.equal(command.interactive, true)
-        assert.equal(args[1], "official installer")
-        if (state.installFailure) return result("", 1, "Installer failed")
-        if (!state.ineffectiveBrew) { state.brew = true; writes.push("homebrew") }
-        return result()
-      }
       if (command.file === brew) {
         assert.equal(state.brew, true)
         if (args[0] === "--version") return result("Homebrew fixture")
@@ -75,8 +71,8 @@ function fixture() {
     mkdir: path => Effect.sync(() => { if (!directories.has(path)) { directories.add(path); writes.push(`mkdir:${path}`) } }),
     realpath: path => Effect.sync(() => state.rootAlias ? "/" : path)
   }
-  const run = (mode: Mode = "apply") => Effect.runPromise(reconcile(resources(system, config, "/mise with 'quotes'/bin/mise"), mode, text => logs.push(text)))
-  return { config, state, files, directories, excluded, writes, commands, logs, run, reads: () => reads }
+  const run = (mode: Mode = "apply") => Effect.runPromise(reconcile(resources(system, config, mise), mode, text => logs.push(text)))
+  return { config, state, files, completion, directories, excluded, writes, commands, logs, run, reads: () => reads }
 }
 
 test("fresh application converges; repeated application preserves installations and profile bytes", async () => {
@@ -111,7 +107,6 @@ test("preview does not query system state; plan observes without applying change
   assert.deepEqual(f.writes, [])
   assert.equal(f.commands.some(c => c.args[0] === "-"), false)
   assert.ok(f.logs.some(line => line.includes("[unknown] spotlight")))
-  assert.ok(f.logs.some(line => line.includes("Requires Homebrew")))
 })
 
 test("existing manually installed Ghostty is kept", async () => {
@@ -136,15 +131,50 @@ test("an absent automatic appearance key means switching is disabled", async () 
   assert.equal(f.writes.includes("appearance"), false)
 })
 
-for (const failure of ["downloadFailure", "ineffectiveBrew", "ineffectiveAppearance", "invalidDefaults"] as const) {
+for (const failure of ["ineffectiveAppearance", "invalidDefaults"] as const) {
   test(`${failure} stops dependent changes`, async () => {
     const f = fixture(); f.state[failure] = true
     await assert.rejects(f.run())
     assert.equal(f.state.ghostty, false)
-    assert.equal(f.files.size, 0)
+    assert.equal(f.files.has(f.config.homebrewProfile), false)
     assert.equal(f.excluded.size, 0)
   })
 }
+
+test("missing Homebrew fails before machine configuration is changed", async () => {
+  const f = fixture(); f.state.brew = false
+  await assert.rejects(f.run(), /bootstrap.sh/u)
+  assert.deepEqual(f.writes, [])
+})
+
+test("zsh loads mise completions in a fresh shell and alongside an existing compinit setup", async () => {
+  const root = mkdtempSync(join(tmpdir(), "new-machine-zsh-"))
+  const mise = join(root, "prefix with 'quotes'", "bin/mise")
+  try {
+    for (const framework of [false, true]) {
+      const f = fixture(mise)
+      if (framework) f.files.set(f.config.miseProfile,
+        'autoload -Uz compinit\ncompinit\n[[ "${_comps[mise]}" == _mise ]] || return 23\ncompdef _files fixture-command\n')
+      await f.run()
+      mkdirSync(dirname(mise), { recursive: true })
+      writeFileSync(mise, "#!/bin/sh\nexit 0\n"); chmodSync(mise, 0o755)
+      mkdirSync(dirname(f.completion), { recursive: true })
+      writeFileSync(f.completion, f.files.get(f.completion)!)
+      const profile = join(root, "zshrc")
+      writeFileSync(profile, f.files.get(f.config.miseProfile)!)
+      const result = spawnSync("/bin/zsh", ["-f", "-c",
+        'source "$1" || exit; print -r -- "${_comps[mise]}"; print -r -- "${_comps[fixture-command]:-none}"', "zsh", profile], {
+        encoding: "utf8", timeout: 10000, env: { HOME: root, ZDOTDIR: root, PATH: "/usr/bin:/bin" }
+      })
+      assert.equal(result.status, 0, result.stderr)
+      assert.equal(result.stderr, "")
+      assert.equal(result.stdout, framework ? "_mise\n_files\n" : "_mise\nnone\n")
+      const before = f.files.get(f.config.miseProfile)
+      await f.run()
+      assert.equal(f.files.get(f.config.miseProfile), before)
+    }
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
 
 for (const failure of ["installFailure", "ineffectiveCask"] as const) {
   test(`${failure} is not reported as a successful cask installation`, async () => {

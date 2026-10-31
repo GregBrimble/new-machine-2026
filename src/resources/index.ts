@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { Effect } from "effect"
 import type { Configuration } from "../config.ts"
 import type { Observation, Resource } from "../runner.ts"
@@ -59,18 +59,11 @@ function homebrew(system: System): Resource {
   const inspect = () => Effect.gen(function* () {
     const path = yield* findHomebrew(system)
     if (path) yield* checked(system, { file: path, args: ["--version"] })
-    return observation(Boolean(path), path ? `Installed at ${path}` : "Install Homebrew with its official installer")
+    return observation(Boolean(path), path ? `Installed at ${path}` : "Homebrew must be prepared by bootstrap.sh")
   })
   return {
-    id: "homebrew", description: "Ensure Homebrew is installed", inspect,
-    apply: () => Effect.gen(function* () {
-      const installer = yield* checked(system, {
-        file: "curl", args: ["--fail", "--silent", "--show-error", "--location", "--retry", "2", "--connect-timeout", "15", "--max-time", "300",
-          "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"]
-      })
-      if (!installer) return yield* Effect.fail(new BootstrapError("Homebrew", "Installer download was empty."))
-      yield* checked(system, { file: "/bin/bash", args: ["-c", installer], interactive: true })
-    }),
+    id: "homebrew", description: "Verify Homebrew prepared by the launcher", inspect,
+    apply: () => Effect.fail(new BootstrapError("Homebrew", "Run bootstrap.sh to prepare Homebrew and the runtime before configuring this machine.")),
     verify: () => verifyObservation("homebrew", inspect)
   }
 }
@@ -112,6 +105,46 @@ function cask(system: System, config: Configuration, item: Configuration["casks"
   }
 }
 
+function zshCompletions(system: System, path: string, mise: string): Resource {
+  const directory = join(dirname(dirname(mise)), "share/zsh/site-functions")
+  const completion = join(directory, "_mise")
+  const start = (name: string) => `# >>> new-machine-2026 ${name} >>>\n`
+  const end = (name: string) => `# <<< new-machine-2026 ${name} <<<\n`
+  const render = (original: string) => {
+    let text = original
+    for (const name of ["zsh fpath", "zsh completion init"]) {
+      const first = text.indexOf(start(name)), last = text.indexOf(end(name))
+      if (first === -1 && last === -1) continue
+      if (first === -1 || last < first || text.indexOf(start(name), first + 1) !== -1 || text.indexOf(end(name), last + 1) !== -1) {
+        throw new Error(`Incomplete or duplicate managed ${name} block in ${path}`)
+      }
+      text = text.slice(0, first) + text.slice(last + end(name).length)
+    }
+    // fpath must precede a framework's compinit; initialize at the end only if needed.
+    const header = `${start("zsh fpath")}fpath=(${quote(directory)} $fpath)\n${end("zsh fpath")}`
+    const footer = `${start("zsh completion init")}if (( ! $+functions[compdef] )); then\n  autoload -Uz compinit\n  compinit\nfi\nautoload -Uz _mise\ncompdef _mise mise\n${end("zsh completion init")}`
+    return `${header}${text}${!text || text.endsWith("\n") ? "" : "\n"}${footer}`
+  }
+  const desired = () => Effect.gen(function* () {
+    if (!(yield* system.readText(completion))) return yield* Effect.fail(new BootstrapError("zsh completions", `Missing ${completion}; repair mise with brew reinstall mise.`))
+    const current = (yield* system.readText(path)) ?? ""
+    const next = yield* Effect.try({ try: () => render(current), catch: cause => new BootstrapError("zsh completions", cause) })
+    return { current, next }
+  })
+  const inspect = () => Effect.gen(function* () {
+    const state = yield* desired()
+    return observation(state.current === state.next, `Load Homebrew's mise completion and initialize zsh in ${path}`)
+  })
+  return {
+    id: "zsh-completions", description: `Configure mise zsh completions in ${path}`, inspect,
+    apply: () => Effect.gen(function* () {
+      const state = yield* desired()
+      if (state.current !== state.next) yield* system.writeText(path, state.next)
+    }),
+    verify: () => verifyObservation("zsh-completions", inspect)
+  }
+}
+
 function spotlight(system: System, folders: ReadonlyArray<string>): Resource {
   return {
     id: "spotlight", description: `Ensure Search Privacy exclusions: ${folders.join(", ") || "none"}`,
@@ -136,13 +169,14 @@ function spotlight(system: System, folders: ReadonlyArray<string>): Resource {
 
 export function resources(system: System, config: Configuration, mise: string): ReadonlyArray<Resource> {
   return [
-    appearance(system, config.appearance),
     homebrew(system),
+    appearance(system, config.appearance),
     profileEntry(system, "Homebrew", config.homebrewProfile, () => Effect.gen(function* () {
       const brew = yield* findHomebrew(system)
       return brew ? `eval "$(${quote(brew)} shellenv)"` : undefined
     })),
     profileEntry(system, "mise", config.miseProfile, () => Effect.succeed(`eval "$(${quote(mise)} activate zsh)"`)),
+    zshCompletions(system, config.miseProfile, mise),
     ...config.casks.map(item => cask(system, config, item)),
     spotlight(system, config.spotlightExcludedFolders)
   ]

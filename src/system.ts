@@ -30,6 +30,7 @@ const io = <A>(operation: string, run: () => Promise<A>): Effect.Effect<A, Boots
 export function liveSystem(env: NodeJS.ProcessEnv): System {
   return {
     homebrewCandidates: [
+      ...(env.BOOTSTRAP_BREW_BIN ? [env.BOOTSTRAP_BREW_BIN] : []),
       ...(env.PATH ?? "").split(":").filter(Boolean).map(path => `${path}/brew`),
       "/opt/homebrew/bin/brew", "/usr/local/bin/brew"
     ],

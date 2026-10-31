@@ -29,7 +29,8 @@ async function main() {
   if (process.platform !== "darwin") throw new Error("This configurator supports macOS only.")
   if (process.getuid?.() === 0) throw new Error("Run as your normal user, without sudo.")
   const mise = process.env.BOOTSTRAP_MISE_BIN
-  if (!mise || !isAbsolute(mise)) throw new Error("Run through bootstrap.sh so mise and Node.js are prepared.")
+  const brew = process.env.BOOTSTRAP_BREW_BIN
+  if (!mise || !isAbsolute(mise) || !brew || !isAbsolute(brew)) throw new Error("Run through bootstrap.sh so Homebrew, mise, and Node.js are prepared.")
   const config = configuration(homedir(), process.env, profile)
   validateConfiguration(config)
   console.log(`Profile: ${profile}; mode: ${mode}`)
