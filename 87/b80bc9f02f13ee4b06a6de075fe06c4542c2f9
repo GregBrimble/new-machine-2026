@@ -1,0 +1,19 @@
+test/settings.test.ts
+  s_790125743e562e::t_1427b53d719080 1-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "87b80bc9f02f13ee4b06a6de075fe06c4542c2f9",
+  "prompts": {},
+  "sessions": {
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
