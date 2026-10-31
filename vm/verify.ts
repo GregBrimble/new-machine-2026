@@ -69,7 +69,7 @@ assert.equal(run("/bin/zsh", ["-lic", [
   '[[ "${_comps[mise]}" == _mise ]] || exit 22',
   '(( $+functions[z] && $+functions[zi] )) || exit 23',
   `mise exec node@${pin} -- node --version`
-].join("\n")]), `v${pin}`)
+].join("\n")]).split("\n").at(-1), `v${pin}`)
 
 const files = [config.homebrewProfile, config.miseProfile, join(home, ".gitconfig"),
   config.git.signing.programPath, config.git.signing.allowedSignersPath, `${config.git.signing.keyPath}.pub`,
@@ -137,13 +137,20 @@ if (stage === "after-login") {
   try {
     run("/bin/launchctl", ["bootstrap", `gui/${process.getuid!()}`, probePath])
     let finished = false
-    for (let attempt = 0; attempt < 120; attempt++) {
+    const deadline = Date.now() + 120_000
+    while (Date.now() < deadline) {
       const state = run("/bin/launchctl", ["print", `gui/${process.getuid!()}/${probeLabel}`])
       const exit = /last exit code = (\d+)/u.exec(state)
-      if (exit) {
+      if (exit && !/state = running/u.test(state)) {
         assert.equal(exit[1], "0", existsSync(probeLog) ? readFileSync(probeLog, "utf8") : state)
-        finished = true
-        break
+        if (!existsSync(aged)) {
+          finished = true
+          break
+        }
+        // macOS can add its access-control xattr during the first permission
+        // grant, refreshing ctime. Let the same conservative age checks pass.
+        await setTimeout(3200)
+        run("/bin/launchctl", ["kickstart", `gui/${process.getuid!()}/${probeLabel}`])
       }
       await setTimeout(1000)
     }
