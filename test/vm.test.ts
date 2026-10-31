@@ -24,6 +24,7 @@ function fixture() {
 printf '%s\\n' "$*" >> "$FIXTURE_LOG"
 case "$1" in
   --version) echo 'Tart fixture' ;;
+  list) printf '%s\\n' "\${FIXTURE_CACHED_IMAGE:-}" ;;
   clone|set|delete) ;;
   run)
     for arg in "$@"; do
@@ -89,5 +90,34 @@ test("insufficient disk space fails before cloning or starting a VM", () => {
     assert.equal(result.status, 1)
     assert.match(result.stderr, /At least 60 GiB/u)
     assert.equal(result.stdout, "")
+  } finally { f.dispose() }
+})
+
+test("a cached image allows a repeat VM test without budgeting for its download twice", () => {
+  const f = fixture()
+  try {
+    const result = f.run({ FIXTURE_AVAILABLE: "40000000", FIXTURE_CACHED_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-vanilla:latest" })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /VM smoke test passed/u)
+  } finally { f.dispose() }
+})
+
+test("an unrelated cached image does not lower the disk-space requirement", () => {
+  const f = fixture()
+  try {
+    const result = f.run({ FIXTURE_AVAILABLE: "40000000", FIXTURE_CACHED_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-base:latest" })
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /At least 60 GiB/u)
+    assert.equal(f.commands().some(line => line.startsWith("clone ")), false)
+  } finally { f.dispose() }
+})
+
+test("a cached image still requires room for the clone and installations", () => {
+  const f = fixture()
+  try {
+    const result = f.run({ FIXTURE_AVAILABLE: "25000000", FIXTURE_CACHED_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-vanilla:latest" })
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /At least 30 GiB/u)
+    assert.equal(f.commands().some(line => line.startsWith("clone ")), false)
   } finally { f.dispose() }
 })

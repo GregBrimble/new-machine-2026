@@ -11,7 +11,7 @@ curl entry point; --local tests a snapshot of this checkout instead.
 In the VM, open /Volumes/My Shared Files/bootstrap-input/start.command.
 Approve the normal macOS privacy prompts there. The driver restarts the VM to
 check login startup, saves logs, and deletes the test VM only after success.
-Requires Tart, Apple Silicon, and at least 60 GiB of free disk space.
+Requires Tart, Apple Silicon, and 60 GiB free (30 GiB with a cached image).
 EOF
 }
 fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
@@ -29,7 +29,12 @@ done
 command -v tart >/dev/null || fail 'Install Tart first: brew install openai/tools/tart'
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 available="$(df -Pk "${TMPDIR:-/tmp}" | awk 'END {print $4}')"
-[[ "$available" =~ ^[0-9]+$ && "$available" -ge 62914560 ]] || fail 'At least 60 GiB free is required for the image, VM, and installations.'
+required_gib=60
+if tart list --quiet | awk -v image="$image" '$0 == image {found=1} END {exit !found}'; then
+  required_gib=30
+fi
+[[ "$available" =~ ^[0-9]+$ && "$available" -ge $((required_gib * 1048576)) ]] || \
+  fail "At least $required_gib GiB free is required for the image, VM, and installations."
 
 artifacts="$(mktemp -d "${TMPDIR:-/tmp}/new-machine-vm.XXXXXX")"
 mkdir "$artifacts/input" "$artifacts/results"

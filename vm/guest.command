@@ -22,6 +22,20 @@ if [[ "$stage" == first ]]; then
     ! command -v "$tool" >/dev/null || { echo "Dirty image: $tool is already installed." >&2; exit 1; }
   done
   [[ ! -e /opt/homebrew && ! -e /usr/local/Homebrew && ! -e "$HOME/.local/share/mise" ]] || { echo 'Dirty image: existing bootstrap tools.' >&2; exit 1; }
+  network_ready() {
+    local address
+    address="$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null || true)"
+    [[ -n "$address" && "$address" != 169.254.* ]]
+  }
+  if ! network_ready; then
+    echo 'Waiting for the VM network to obtain a DHCP lease.'
+    sudo /usr/sbin/ipconfig set en0 DHCP
+    for ((attempt=0; attempt<60; attempt++)); do
+      network_ready && break
+      sleep 1
+    done
+    network_ready || { echo 'The VM did not obtain an IPv4 address.' >&2; exit 1; }
+  fi
   mkdir "$workspace"
   tar -xzf "$input/source.tar.gz" -C "$workspace"
   /usr/bin/sw_vers > "$results/guest-os.txt"

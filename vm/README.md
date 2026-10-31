@@ -17,10 +17,14 @@ npm run test:vm -- --local
 The driver itself needs only Bash and Tart, so `/bin/bash vm/run.sh` works without
 Node installed on the host. Allow at least **60 GiB free** for the image cache,
 guest disk, developer tools, and apps; the image download is roughly 25 GB.
+When the selected image is already cached, the driver requires **30 GiB free**
+for the new clone and installations. A changed remote image tag may require
+another download; use a digest to keep the cached image fixed.
 The test uses the image's resource defaults (4 CPUs, 8 GiB RAM, and a 50 GB disk
 for the default vanilla image). The host initializer does not install Tart automatically.
 
-The VM opens visibly. Its default credentials are `admin` / `admin`. In its
+The VM opens visibly. Its default credentials are `admin` / `admin`. The guest
+test renews its DHCP lease if it starts without an IPv4 address. In its
 Finder, use Go > Go to Folder to open:
 
 ```text
