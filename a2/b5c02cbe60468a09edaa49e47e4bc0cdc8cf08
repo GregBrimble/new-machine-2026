@@ -1,0 +1,119 @@
+.github/workflows/checks.yml
+  s_790125743e562e::t_d2432624f61a60 26
+README.md
+  s_790125743e562e::t_5c3e9f3121bcf3 3-5,7,17-20,22,30-69,77-91
+docs/cli.md
+  s_790125743e562e::t_df069d956def8f 1-52
+docs/components.md
+  s_790125743e562e::t_68262c5ff07e35 1-224
+package.json
+  s_790125743e562e::t_8dd22c42235af6 12
+src/cli.ts
+  s_790125743e562e::t_a72ce108b1efdb 2
+src/components/appearance.ts
+  s_790125743e562e::t_bc85c669ae4b69 1,3,7,10-11,36
+src/components/checkout.ts
+  s_790125743e562e::t_a06ce9c7c17399 1,3-6,10-15,18-20,38
+src/components/developer.ts
+  s_83bb71ecb76960::t_ca3433e68114f1 3-5,8-11,22
+src/components/downloads.ts
+  s_790125743e562e::t_9fc5c218313666 3,5-7,11-18,21-25,41-44,48,61-63
+src/components/git.ts
+  s_790125743e562e::t_1b439dcf6453c9 1,3,7-10,23
+src/components/homebrew.ts
+  s_790125743e562e::t_eded094cfac729 2-3,7,9-21,31-45
+src/components/index.ts
+  s_790125743e562e::t_e8fee2342d014f 1-37
+src/components/shell.ts
+  s_83bb71ecb76960::t_d8b4df7fa9ed14 1-86
+src/components/signing.ts
+  s_790125743e562e::t_52c2abed57ed82 1,3-5,9-22,51-52,77,94-95,136
+src/components/spotlight.applescript
+  s_790125743e562e::t_ae15611b7e64eb 83-89
+src/components/spotlight.ts
+  s_790125743e562e::t_028465cc2c0322 1-37
+src/components/trash.ts
+  s_790125743e562e::t_f081af4828687b 1,3,7-10,25
+src/components/vlc.ts
+  s_790125743e562e::t_e5e2ae54e54209 2-5,9-15,59-62,79
+src/machine.ts
+  s_790125743e562e::t_d39707707fbe0c 1,4-9,12-13
+src/main.ts
+  s_790125743e562e::t_d2a07a9fc38cad 5,20,23
+src/runner.ts
+  s_790125743e562e::t_3254e8ca693189 5,12,20,35-39,41,44-45,48-49,51,57-58,60,63,67,69,75-78,80-81,83,90,94,96,114
+test/appearance.test.ts
+  s_1cdeaba6b00ea9::t_d42e1f835de070 1-46
+test/bootstrap.test.ts
+  s_83bb71ecb76960::t_e49b65f064aa70 28
+test/checkout.test.ts
+  s_83bb71ecb76960::t_d878e068cb684b 8,21-24,28,33
+test/components.test.ts
+  s_790125743e562e::t_5ac8263e0a4f15 1-17
+test/downloads.test.ts
+  s_790125743e562e::t_fff603fffcc406 10-12,18,26,33,60,66,116,122,124,127,129,132,134,150
+test/helpers.ts
+  s_790125743e562e::t_b743d894bd2669 1-22
+test/homebrew.test.ts
+  s_1cdeaba6b00ea9::t_9a1ab7ec6cce3c 4-26,29-30,32-35,38-39,41-42,44,48-49,52,56-58,62,64-65
+test/runner.test.ts
+  s_790125743e562e::t_c635486c532c58 10,15,21,24,29,38,43,45,53,55,61,63,70,79-83,85,93,111,128-144
+test/settings.test.ts
+  s_83bb71ecb76960::t_73d724367702cb 7-11,18,36,49-50,55,155,157,159,161
+test/shell.test.ts
+  s_1cdeaba6b00ea9::t_484bb6ed979357 1-52
+test/signing.test.ts
+  s_790125743e562e::t_4df1d80e7c8e36 8-9,16,144,146,148,150
+test/spotlight.test.ts
+  s_790125743e562e::t_72f0ae7242ffbd 1-37
+test/trash.test.ts
+  s_790125743e562e::t_28fea459667337 4-5,31
+test/vm.test.ts
+  s_790125743e562e::t_bffc542828853c 2,4,11,37-38,41-43,45,64-69,73-76,78-79,198,211-241
+test/zsh.test.ts
+  s_790125743e562e::t_8a0cd041f1b56c 7-8,48
+vm/README.md
+  s_790125743e562e::t_4a8179fdcc74f9 21-27,120
+vm/driver.ts
+  s_790125743e562e::t_2b8771778392b8 1-175
+vm/run.sh
+  s_790125743e562e::t_bdcf2fccc7f6b5 4
+vm/run.ts
+  s_790125743e562e::t_d515de47205b32 1-21
+vm/ui.py
+  s_790125743e562e::t_b32e516df2649a 113,122,126-127
+vm/verify.ts
+  s_790125743e562e::t_62ccc7cf517e0e 8-15,27-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a2b5c02cbe60468a09edaa49e47e4bc0cdc8cf08",
+  "prompts": {},
+  "sessions": {
+    "s_1cdeaba6b00ea9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1929a-77b7-7ee1-a842-1c6438395078",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    },
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    },
+    "s_83bb71ecb76960": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19739-dc31-74d1-97da-e4797c3d34b3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
