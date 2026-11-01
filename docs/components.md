@@ -3,6 +3,11 @@
 Edit desired settings in the corresponding module under [`src/components`](../src/components).
 The registry wires dependencies; it does not hold configuration.
 
+Boolean preferences are read through Foundation's named preference domains.
+Effect Schema validates the JSON output: a missing value is `null`, while
+strings, numbers, malformed output and failed commands fail inspection. Appearance
+and Trash explicitly treat a missing Boolean preference as disabled.
+
 ## Packages
 
 The Homebrew component passes its formula and cask lists as an inline Brewfile

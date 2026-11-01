@@ -1,7 +1,8 @@
+import { readBooleanPreference } from "../preferences.ts"
 import type { Machine } from "../machine.ts"
 import { Effect } from "effect"
 import type { Component } from "../runner.ts"
-import { BootstrapError, checked } from "../system.ts"
+import { checked } from "../system.ts"
 import type { System } from "../system.ts"
 
 export const settings = (_machine: Machine) => ({ removeAfter30Days: true })
@@ -9,15 +10,7 @@ export const settings = (_machine: Machine) => ({ removeAfter30Days: true })
 export function trashSettings(system: System, enabled: boolean): Component {
   if (typeof enabled !== "boolean") throw new Error("Automatic Trash removal must be a boolean.")
   const inspect = () => Effect.gen(function* () {
-    const result = yield* system.run({ file: "defaults", args: ["read", "com.apple.finder", "FXRemoveOldTrashItems"] })
-    let current = false
-    if (result.code === 0) {
-      const value = result.stdout.trim()
-      if (value !== "0" && value !== "1") return yield* Effect.fail(new BootstrapError("Trash settings", `Unexpected boolean: ${value}`))
-      current = value === "1"
-    } else if (!/does not exist|not found/iu.test(result.stderr)) {
-      return yield* Effect.fail(new BootstrapError("Trash settings", result.stderr || `defaults exited with status ${result.code}`))
-    }
+    const current = (yield* readBooleanPreference(system, "com.apple.finder", "FXRemoveOldTrashItems")) ?? false
     return { status: current === enabled ? "ok" as const : "change" as const, detail: `Automatically remove items after 30 days in Trash: ${enabled}` }
   })
   return {

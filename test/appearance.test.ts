@@ -13,10 +13,12 @@ function fixture() {
       if (command.args[1].includes("get dark mode")) return result(String(state.dark))
       writes++
       if (!state.ineffective) state.dark = command.args[1].endsWith("true")
+    } else if (command.file === "/usr/bin/osascript") {
+      assert.deepEqual(command.args.slice(-2), ["NSGlobalDomain", "AppleInterfaceStyleSwitchesAutomatically"])
+      return state.invalid ? result("", 1, "Permission denied") : result(JSON.stringify(state.absent ? null : { value: state.automatic }))
     } else {
       assert.equal(command.file, "defaults")
-      if (command.args[0] === "read") return state.invalid ? result("", 1, "Permission denied")
-        : state.absent ? result("", 1, "The domain/default pair does not exist") : result(state.automatic ? "1" : "0")
+      assert.equal(command.args[0], "write")
       writes++; state.automatic = false
     }
     return result()
@@ -42,5 +44,12 @@ for (const failure of ["invalid", "ineffective"] as const) {
   test(`appearance surfaces ${failure} changes`, async () => {
     const f = fixture(); f.state[failure] = true
     await assert.rejects(f.run(), failure === "invalid" ? /Permission denied/u : /Verification failed/u)
+  })
+}
+
+for (const output of ["1", "yes", '"false"', "null"]) {
+  test(`dark mode rejects a non-Boolean response: ${output}`, async () => {
+    const system = fakeSystem({ run: () => Effect.succeed(result(output)) })
+    await assert.rejects(Effect.runPromise(appearance(system, "dark").inspect()), /Appearance/u)
   })
 }

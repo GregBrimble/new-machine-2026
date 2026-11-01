@@ -34,12 +34,9 @@ assert.equal(process.version, `v${pin}`)
 assert.equal(run(brew, ["--prefix", "mise"]), "/opt/homebrew/opt/mise")
 assert.ok(statSync(mise).isFile())
 assert.equal(run("/usr/bin/defaults", ["read", "-g", "AppleInterfaceStyle"]), "Dark")
-const automatic = spawnSync("/usr/bin/defaults", ["read", "-g", "AppleInterfaceStyleSwitchesAutomatically"], { encoding: "utf8", timeout: 60_000 })
-if (automatic.status === 0) assert.equal(automatic.stdout.trim(), "0")
-else {
-  assert.equal(automatic.status, 1, automatic.stderr)
-  assert.match(automatic.stderr, /does not exist|not found/iu, "An absent key means automatic switching is off")
-}
+assert.equal(run("/usr/bin/osascript", ["-l", "JavaScript", "-e",
+  'ObjC.import("Foundation"); $.NSUserDefaults.standardUserDefaults.boolForKey("AppleInterfaceStyleSwitchesAutomatically")'
+]), "false")
 assert.equal(run("/usr/bin/defaults", ["read", "com.apple.finder", "FXRemoveOldTrashItems"]), "1")
 assert.equal(run("/usr/bin/git", ["config", "--global", "--type=bool", "--get", "push.autoSetupRemote"]), "true")
 assert.equal(run("/usr/bin/git", ["config", "--global", "--get", "gpg.format"]), "ssh")
