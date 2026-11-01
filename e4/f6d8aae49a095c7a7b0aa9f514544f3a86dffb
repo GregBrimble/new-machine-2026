@@ -1,0 +1,45 @@
+.github/workflows/checks.yml
+  s_790125743e562e::t_50c01d9c2caa71 27-30
+README.md
+  s_790125743e562e::t_87b7431abe7ba1 346-348,357-359
+src/resources/index.ts
+  s_790125743e562e::t_be6be3f3324af6 135
+src/resources/spotlight.applescript
+  s_790125743e562e::t_b7579dfda71ce6 54-65
+test/vm.test.ts
+  s_790125743e562e::t_85e802bc41d812 29,34,47-62,65,78,116,135,149,168,175-199
+vm/README.md
+  s_790125743e562e::t_eef8551a3591c4 3,15-16,21-25,28-29,33-55,84-85,121-123
+vm/guest.command
+  s_790125743e562e::t_79087cd1187968 60-62
+vm/ocr.swift
+  s_790125743e562e::t_b312e478090dcf 1-25
+vm/requirements.txt
+  s_790125743e562e::t_fad8be7b617120 1-13
+vm/run.sh
+  s_790125743e562e::t_ded074e72d0e23 7,9,11-12,14-15,21-22,27,56-71,76,84,97-98,115-118,120,134-171,173,177-181,186
+vm/test_ui.py
+  s_790125743e562e::t_302d16f94cd14e 1-52
+vm/ui.py
+  s_790125743e562e::t_5f8830e7794ddb 1-176
+vm/verify-spotlight.js
+  s_790125743e562e::t_ee6285d3978acb 1-41
+vm/verify.ts
+  s_790125743e562e::t_5149e720891d84 95-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e4f6d8aae49a095c7a7b0aa9f514544f3a86dffb",
+  "prompts": {},
+  "sessions": {
+    "s_790125743e562e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18a99-a530-7550-a19a-1b61279f50ee",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Greg Brimble <gbrimble@cloudflare.com>"
+    }
+  }
+}
