@@ -26,10 +26,12 @@ case "$1" in
   --version) echo 'Tart fixture' ;;
   list) printf '%s\\n' "\${FIXTURE_CACHED_IMAGE:-}" ;;
   clone|set|delete) ;;
+  ip) echo 192.0.2.1 ;;
   run)
     for arg in "$@"; do
       case "$arg" in --dir=bootstrap-results:*) output="\${arg#--dir=bootstrap-results:}" ;; esac
     done
+    printf '%s\\n' 'VNC server is running at vnc://:fixture@127.0.0.1:5900'
     echo $$ > "$FIXTURE_ROOT/vm-pid"
     if [[ ! -f "$FIXTURE_ROOT/first-boot" ]]; then
       touch "$FIXTURE_ROOT/first-boot"
@@ -42,10 +44,25 @@ case "$1" in
   stop) kill "$(cat "$FIXTURE_ROOT/vm-pid")" ;;
   *) exit 97 ;;
 esac`)
-  const run = (extra: Record<string, string> = {}, args: string[] = ["--local"]) => spawnSync("/bin/bash", [script, ...args], {
+  executable("python3", `
+if [[ "$1" == --version ]]; then echo 'Python 3.14.0'; exit; fi
+if [[ "$1" == -c ]]; then exit; fi
+if [[ "$1" == -m && "$2" == venv ]]; then
+  mkdir -p "$3/bin"
+  cp "$0" "$3/bin/python"
+  exit
+fi
+if [[ "$1" == -m && "$2" == pip ]]; then exit; fi
+[[ "$1" == -B && "$2" == */vm/ui.py ]] || exit 97
+printf 'ui %s\\n' "$*" >> "$FIXTURE_LOG"
+[[ "\${FIXTURE_UI_FAIL:-}" != true ]] || exit 1
+`)
+  executable("ssh", 'printf "ssh %s\\n" "$*" >> "$FIXTURE_LOG"')
+  executable("xcrun", 'touch "${@: -1}"')
+  const run = (extra: Record<string, string> = {}, args: string[] = ["--local", "--attended"]) => spawnSync("/bin/bash", [script, ...args], {
     cwd: repo, encoding: "utf8", timeout: 20_000,
     env: { ...process.env, PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`, TMPDIR: root,
-      FIXTURE_ROOT: root, FIXTURE_LOG: log, ...extra }
+      FIXTURE_ROOT: root, FIXTURE_LOG: log, XDG_CACHE_HOME: root, ...extra }
   })
   return { root, run, commands: () => readFileSync(log, "utf8").trim().split("\n"),
     dispose: () => rmSync(root, { recursive: true, force: true }) }
@@ -58,7 +75,7 @@ test("VM driver restarts its own disposable clone and deletes it only after succ
     assert.equal(result.status, 0, result.stderr)
     const commands = f.commands()
     const clone = commands.find(line => line.startsWith("clone "))!
-    assert.ok(clone.includes("macos-tahoe-vanilla:latest"))
+    assert.ok(clone.includes("macos-tahoe-vanilla@sha256:"))
     const name = clone.split(" ").at(-1)!
     assert.match(name, /^new-machine-test-[0-9a-f-]+$/u)
     assert.equal(commands.filter(line => line.startsWith(`run ${name} `)).length, 2)
@@ -96,7 +113,7 @@ test("insufficient disk space fails before cloning or starting a VM", () => {
 test("a cached image allows a repeat VM test without budgeting for its download twice", () => {
   const f = fixture()
   try {
-    const result = f.run({ FIXTURE_AVAILABLE: "40000000", FIXTURE_CACHED_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-vanilla:latest" })
+    const result = f.run({ FIXTURE_AVAILABLE: "40000000", FIXTURE_CACHED_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-vanilla@sha256:eeec54bfe1f076e27786c5d92b89187a05b1d109b5071eb2dcdf02d596e34640" })
     assert.equal(result.status, 0, result.stderr)
     assert.match(result.stdout, /VM smoke test passed/u)
   } finally { f.dispose() }
@@ -115,7 +132,7 @@ test("an unrelated cached image does not lower the disk-space requirement", () =
 test("a cached image still requires room for the clone and installations", () => {
   const f = fixture()
   try {
-    const result = f.run({ FIXTURE_AVAILABLE: "25000000", FIXTURE_CACHED_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-vanilla:latest" })
+    const result = f.run({ FIXTURE_AVAILABLE: "25000000", FIXTURE_CACHED_IMAGE: "ghcr.io/cirruslabs/macos-tahoe-vanilla@sha256:eeec54bfe1f076e27786c5d92b89187a05b1d109b5071eb2dcdf02d596e34640" })
     assert.equal(result.status, 1)
     assert.match(result.stderr, /At least 30 GiB/u)
     assert.equal(f.commands().some(line => line.startsWith("clone ")), false)
@@ -129,7 +146,7 @@ test("an explicitly supplied public CA bundle is copied into the read-only guest
     execFileSync("/usr/bin/openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes",
       "-subj", "/CN=VM Test CA", "-days", "1", "-keyout", join(f.root, "test-key.pem"), "-out", certificate],
     { stdio: "ignore", timeout: 10_000 })
-    const result = f.run({}, ["--local", "--ca-bundle", certificate])
+    const result = f.run({}, ["--local", "--attended", "--ca-bundle", certificate])
     assert.equal(result.status, 0, result.stderr)
     const results = /Results: (.+)/u.exec(result.stdout)![1]
     assert.equal(readFileSync(join(results, "../input/network-ca.pem"), "utf8"), readFileSync(certificate, "utf8"))
@@ -148,10 +165,35 @@ test("unreadable, invalid, and private-key CA inputs fail before starting a VM",
       [invalid, /PEM certificates/u],
       [privateKey, /must not contain private keys/u]
     ] as const) {
-      const result = f.run({}, ["--local", "--ca-bundle", path])
+      const result = f.run({}, ["--local", "--attended", "--ca-bundle", path])
       assert.equal(result.status, 1)
       assert.match(result.stderr, message)
       assert.equal(result.stdout, "")
     }
+  } finally { f.dispose() }
+})
+
+
+test("unattended VM driver connects its UI controller for both boots", () => {
+  const f = fixture()
+  try {
+    const result = f.run({}, ["--local"])
+    assert.equal(result.status, 0, result.stderr)
+    assert.ok(f.commands().filter(line => line.startsWith("run ")).every(line => line.includes("--no-graphics --vnc-experimental")))
+    const ui = f.commands().filter(line => line.startsWith("ui "))
+    assert.equal(ui.length, 2)
+    assert.ok(f.commands().some(line => line.startsWith("ssh ") && line.includes("IdentityAgent=none") && line.includes("PubkeyAuthentication=no") && line.includes("open -a Terminal")))
+    assert.ok(ui[0].endsWith("--stage first"))
+    assert.ok(ui[1].endsWith("--stage after-login"))
+  } finally { f.dispose() }
+})
+
+test("failed UI automation stops and preserves its VM", () => {
+  const f = fixture()
+  try {
+    const result = f.run({ FIXTURE_UI_FAIL: "true" }, ["--local"])
+    assert.equal(result.status, 1, result.stderr)
+    assert.match(result.stderr, /VM preserved for inspection/u)
+    assert.equal(f.commands().some(line => line.startsWith("delete ")), false)
   } finally { f.dispose() }
 })

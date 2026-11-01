@@ -343,7 +343,9 @@ not re-enable indexing: remove it from Search Privacy in System Settings.
 The AppleScript targets **English System Settings on macOS Tahoe (26)**. Allow
 your terminal to control System Events and System Settings under Privacy &
 Security > Automation, and enable it under Privacy & Security > Accessibility.
-Leave System Settings and the keyboard alone during this step. Missing controls,
+If Accessibility is missing, the runner opens that settings page and waits up to
+five minutes for you to grant it, then continues automatically. Leave System
+Settings and the keyboard alone during this step. Missing controls,
 denied permission, or an unaccepted folder fail the run. Verification happens
 inside the picker automation; an independent folder-level state query is
 unavailable.
@@ -352,8 +354,9 @@ unavailable.
 
 For a fresh macOS integration check, see the [Tart VM smoke test](vm/README.md).
 Run `npm run test:vm` to test the published initializer, or append `-- --local`
-to test the current checkout. This is an attended test with real privacy prompts
-and a restart; it is separate from the ordinary unit tests below.
+to test the current checkout. The driver operates a disposable VM through VNC,
+including normal privacy prompts and a restart. Use `-- --attended` for manual
+operation. It is separate from the ordinary unit tests below.
 GitHub Actions runs the ordinary checks on a hosted macOS Tahoe runner for each
 push and pull request; that job does not run the full VM test.
 

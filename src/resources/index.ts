@@ -132,7 +132,7 @@ function spotlight(system: System, folders: ReadonlyArray<string>): Resource {
         if (resolved === "/") return yield* Effect.fail(new BootstrapError("Spotlight", `Folder resolves to filesystem root: ${path}`))
         paths.push(resolved)
       }
-      if (paths.length) yield* checked(system, { file: "osascript", args: ["-", ...new Set(paths)], input: spotlightScript })
+      if (paths.length) yield* checked(system, { file: "osascript", args: ["-", ...new Set(paths)], input: spotlightScript, interactive: true })
     }),
     // The AppleScript checks that each picker submission is accepted, then closes the dialog.
     // There is no independent, supported folder-level query for these exclusions.

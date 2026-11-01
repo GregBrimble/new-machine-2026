@@ -1,6 +1,6 @@
 # macOS VM smoke test
 
-This is an opt-in, attended end-to-end test on an Apple Silicon Mac. It clones a
+This is an opt-in, unattended end-to-end test on an Apple Silicon Mac. It clones a
 fresh macOS Tahoe **vanilla** image, runs the real initializer, checks the result,
 runs it again, then restarts the VM and checks login startup and background
 Downloads access. Normal `npm test` does not start a VM or install software.
@@ -12,39 +12,54 @@ brew install openai/tools/tart
 npm run test:vm
 # Test uncommitted checkout contents instead of the public curl entry point:
 npm run test:vm -- --local
+# Operate the guest yourself for debugging:
+npm run test:vm -- --attended
 # Behind a TLS-inspecting proxy, provide its public CA certificates:
 npm run test:vm -- --ca-bundle /path/to/corporate-ca.pem
 ```
 
-The driver itself needs only Bash and Tart, so `/bin/bash vm/run.sh` works without
-Node installed on the host. Allow at least **60 GiB free** for the image cache,
+The unattended driver requires Bash, Tart, Python 3.11 or newer, and the Swift
+command line tools. `/bin/bash vm/run.sh` works without Node installed on the host.
+It caches a Python virtual environment with the exact versions in
+`vm/requirements.txt` and compiles a small Apple Vision OCR helper. Attended mode
+requires only Bash and Tart. Allow at least **60 GiB free** for the image cache,
 guest disk, developer tools, and apps; the image download is roughly 25 GB.
 When the selected image is already cached, the driver requires **30 GiB free**
-for the new clone and installations. A changed remote image tag may require
-another download; use a digest to keep the cached image fixed.
+for the new clone and installations. The default image is pinned by OCI digest;
+overriding it with a moving tag may require another download.
 The test uses the image's resource defaults (4 CPUs, 8 GiB RAM, and a 50 GB disk
 for the default vanilla image). The host initializer does not install Tart automatically.
 
-The VM opens visibly. Its default credentials are `admin` / `admin`. The guest
-test renews its DHCP lease if it starts without an IPv4 address. In its
-Finder, use Go > Go to Folder to open:
+The default runs without a VM window. A host-side controller connects to Tart's
+password-protected loopback VNC endpoint, recognizes text in guest screenshots,
+and uses the guest's virtual mouse and keyboard. The driver uses SSH with the
+image's public fixture password to open the shared script in the GUI Terminal;
+it disables public-key and agent authentication for that connection. The VNC
+controller approves the expected Automation and Downloads prompts and enables Terminal's
+Accessibility switch using the disposable image's `admin` / `admin` account.
+It does not require Accessibility or Screen Recording permission on the host.
+Unexpected privacy prompts fail with a screenshot rather than being approved.
+The controller targets the pinned English Tahoe image and Tart's experimental
+VNC server; UI or protocol changes can require updating it.
 
-```text
-/Volumes/My Shared Files/bootstrap-input/start.command
-```
+The initializer itself opens Accessibility settings and waits for permission,
+then continues without a rerun. The guest independently reads Search Privacy's
+accessibility table after each pass and after reboot. That table exposes display
+names, so this fresh-image test compares the exact expected row names and count;
+full folder paths are submitted by the initializer's folder picker automation.
+No manual visual confirmation is required. Neither script edits the TCC database
+or disables SIP.
 
-Follow the Terminal instructions: allow Automation prompts, enable Terminal's
-Accessibility access, and leave the keyboard and System Settings alone during
-Search Privacy automation. Grant any normal Downloads permission prompts.
+With `--attended`, the VM opens visibly. In Finder, use Go > Go to Folder to open
+`/Volumes/My Shared Files/bootstrap-input/start.command` and grant the normal
+privacy prompts. The guest renews DHCP if it starts without an IPv4 address.
+
 The guest generates a disposable signing passphrase and supplies it through
 OpenSSH's askpass interface for key creation and Keychain storage. It removes
 the passphrase file and askpass environment before verification and repeat
 application. No GitHub account or key upload is needed: the test checks signing
 and verification locally. After restart, its first signed commit exercises the
 signing helper's Keychain reload without askpass.
-Finally, visually check both Search Privacy exclusions and type `yes`. macOS has
-no supported folder-level API for independently reading that exclusion list.
-The test never edits the TCC database or disables SIP to bypass these steps.
 
 The host restarts the VM automatically. A test-only LaunchAgent opens Terminal
 to continue after login; this also exercises the real Downloads helper's login
@@ -66,8 +81,8 @@ and actual background file access; it does not wait for macOS's discretionary
 The container check runs `container --version`; running Linux containers inside
 this macOS guest would require nested virtualization and is outside this test.
 
-Logs, snapshots, the checkout commit/diff, and a snapshot hash are saved in the
-printed temporary artifacts directory. Published mode tests the moving public
+Logs, UI screenshots, Spotlight table results, the checkout commit/diff, and a
+snapshot hash are saved in the printed temporary artifacts directory. Published mode tests the moving public
 `main` entry point against this checkout's expectations; synchronize the checkout
 with `main` first. Local mode snapshots current source, including uncommitted
 changes, and runs `bootstrap.sh` from that snapshot. No host home directory,
@@ -103,7 +118,9 @@ For a fixed OS image, pass a versioned image or OCI digest:
 /bin/bash vm/run.sh --image ghcr.io/cirruslabs/macos-tahoe-vanilla@sha256:<digest>
 ```
 
-The default follows `:latest` to find macOS regressions. The
+Pinning the image fixes the starting OS state. Homebrew packages, downloads,
+and published `main` remain live inputs, so this is repeatable integration
+coverage rather than a fully hermetic build. The
 [vanilla image template](https://github.com/cirruslabs/macos-image-templates/blob/main/templates/vanilla-tahoe.pkr.hcl)
 sets up auto-login, passwordless sudo, remote access, and disables Gatekeeper;
 the guest test re-enables Gatekeeper before installing anything. The image is a

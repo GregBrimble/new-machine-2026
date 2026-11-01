@@ -51,9 +51,18 @@ on waitForControl(wantedRole, wantedLabel)
 end waitForControl
 
 on run folderPaths
-  tell application "System Events"
-    if not UI elements enabled then error "Enable Accessibility for your terminal in System Settings > Privacy & Security > Accessibility, then rerun."
-  end tell
+  tell application "System Events" to set accessible to UI elements enabled
+  if not accessible then
+    log "Enable Accessibility for your terminal in System Settings. Waiting for permission..."
+    open location "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    set permissionDeadline to (current date) + 300
+    repeat
+      tell application "System Events" to set accessible to UI elements enabled
+      if accessible then exit repeat
+      if (current date) is greater than or equal to permissionDeadline then error "Enable Accessibility for your terminal in System Settings > Privacy & Security > Accessibility, then rerun."
+      delay 1
+    end repeat
+  end if
   tell application "System Settings" to activate
   if my findControl("AXTable", "Excluded locations") is missing value then
     open location "x-apple.systempreferences:com.apple.Spotlight-Settings.extension?privacy"

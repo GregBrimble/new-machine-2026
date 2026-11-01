@@ -92,6 +92,10 @@ if (stage === "repeat") {
   // Search Privacy cannot be inspected through a supported CLI; it is ensured again.
   assert.deepEqual(applied, ["[applied] spotlight"])
 }
+const spotlight = run("/usr/bin/osascript", ["-l", "JavaScript", join(home, "new-machine-vm-smoke/vm/verify-spotlight.js"),
+  ...config.spotlightExcludedFolders])
+writeFileSync(join(results, `spotlight-${stage}.txt`), `${spotlight}\n`)
+console.log(spotlight)
 console.log(`PASS: ${stage} configuration, applications, login zsh, and file/package snapshot`)
 
 if (stage === "after-login") {

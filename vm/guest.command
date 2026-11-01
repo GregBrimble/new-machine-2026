@@ -55,12 +55,10 @@ if [[ "$stage" == first ]]; then
   # The vanilla image disables Gatekeeper; restore the normal application policy.
   sudo /usr/sbin/spctl --global-enable
   /usr/sbin/spctl --status
-  printf '\nAllow Terminal to control System Events when macOS asks.\n'
-  /usr/bin/osascript -e 'tell application "System Events" to get UI elements enabled'
-  printf 'Enable Terminal in System Settings > Privacy & Security > Accessibility.\n'
-  printf 'Keep System Settings and the keyboard free while Spotlight automation runs.\n'
-  read -r -p 'Press Return once Accessibility is enabled: '
 fi
+
+# The disposable image has passwordless sudo; Homebrew needs no confirmation.
+export NONINTERACTIVE=1
 
 cd "$workspace"
 read -r node_version < .node-version
@@ -89,10 +87,6 @@ if [[ "$stage" == first ]]; then
   verify first
   bootstrap 2>&1 | tee "$results/bootstrap-repeat.log"
   verify repeat
-  printf '\nOpen Search Privacy and check it contains ~/Developer and /opt/homebrew.\n'
-  read -r -p 'Type yes once you have visually verified both exclusions: ' confirmed
-  [[ "$confirmed" == yes ]] || { echo 'Spotlight verification was not confirmed.' >&2; exit 1; }
-  printf 'Both Search Privacy exclusions visually confirmed.\n' > "$results/spotlight.txt"
   cat > "$workspace/after-login.command" <<'EOF'
 #!/bin/bash
 exec /bin/bash "$HOME/new-machine-vm-smoke/vm/guest.command" after-login
