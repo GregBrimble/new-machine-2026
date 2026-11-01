@@ -23,7 +23,7 @@ jobs:
           for script in bootstrap.sh vm/run.sh vm/guest.command; do
             /bin/bash -n "$script"
           done
-          /usr/bin/osacompile -o "$RUNNER_TEMP/spotlight.scpt" src/resources/spotlight.applescript
+          /usr/bin/osacompile -o "$RUNNER_TEMP/spotlight.scpt" src/components/spotlight.applescript
           /usr/bin/osacompile -l JavaScript -o "$RUNNER_TEMP/verify-spotlight.scpt" vm/verify-spotlight.js
           xcrun swiftc vm/ocr.swift -o "$RUNNER_TEMP/vm-ocr"
       - name: Check VM prompt handling

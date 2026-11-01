@@ -1,17 +1,28 @@
 import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
-import { dirname } from "node:path"
+import { dirname, join } from "node:path"
 import { Effect } from "effect"
-import type { Configuration } from "../config.ts"
-import type { Resource } from "../runner.ts"
-import { verifyObservation } from "../runner.ts"
+import { absolutePaths } from "../machine.ts"
+import type { Machine } from "../machine.ts"
+import type { Component } from "../runner.ts"
 import { checked } from "../system.ts"
 import type { System } from "../system.ts"
 
-const xml = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+export interface Downloads { directory: string; olderThanDays: number; checkIntervalHours: number; helperPath: string; launchAgentPath: string; logPath: string }
+export const settings = ({ home }: Machine): Downloads => ({
+  directory: join(home, "Downloads"), olderThanDays: 30, checkIntervalHours: 24,
+  helperPath: join(home, "Library/Application Support/new-machine-2026/downloads-cleanup"),
+  launchAgentPath: join(home, "Library/LaunchAgents/com.gregbrimble.new-machine-2026.downloads-cleanup.plist"),
+  logPath: join(home, "Library/Logs/new-machine-2026-downloads-cleanup.log")
+})
+
 const source = readFileSync(new URL("./downloads-helper.m", import.meta.url), "utf8")
 
-export function downloadsCleanup(system: System, config: Configuration["downloadsCleanup"]): Resource {
+export function downloadsCleanup(system: System, config: Downloads): Component {
+  absolutePaths(config.directory, config.helperPath, config.launchAgentPath, config.logPath)
+  if (join(config.directory) === "/") throw new Error("Downloads cleanup cannot target the filesystem root.")
+  if (!Number.isSafeInteger(config.olderThanDays) || config.olderThanDays <= 0) throw new Error("Downloads cleanup age must be a positive whole number of days.")
+  if (!Number.isSafeInteger(config.checkIntervalHours * 3600) || config.checkIntervalHours < 1) throw new Error("Downloads cleanup interval must be at least one hour and resolve to a safe whole number of seconds.")
   const age = `+${config.olderThanDays}d`
   const label = "com.gregbrimble.new-machine-2026.downloads-cleanup"
   const sourcePath = `${config.helperPath}.m`, nextPath = `${config.helperPath}.next`, markerPath = `${config.helperPath}.sha256`
@@ -27,24 +38,14 @@ export function downloadsCleanup(system: System, config: Configuration["download
     "!", "-name", ".*", "!", "-name", "*.download", "!", "-name", "*.crdownload", "!", "-name", "*.part",
     "-exec", "/usr/bin/trash", "--verbose", "{}", "+"
   ]
-  const plist = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>${label}</string>
-  <key>ProgramArguments</key>
-  <array>${args.map(arg => `<string>${xml(arg)}</string>`).join("")}</array>
-  <key>KeepAlive</key><true/>
-  <key>ProcessType</key><string>Background</string>
-  <key>StandardOutPath</key><string>${xml(config.logPath)}</string>
-  <key>StandardErrorPath</key><string>${xml(config.logPath)}</string>
-</dict>
-</plist>
-`
+  const plist = checked(system, {
+    file: "/usr/bin/plutil", args: ["-convert", "xml1", "-o", "-", "--", "-"],
+    input: JSON.stringify({ Label: label, ProgramArguments: args, KeepAlive: true, ProcessType: "Background", StandardOutPath: config.logPath, StandardErrorPath: config.logPath })
+  }).pipe(Effect.map(text => `${text}\n`))
   const description = `Use macOS background activity to trash files in ${config.directory} older than ${config.olderThanDays} days (suggested interval: ${config.checkIntervalHours} hours)`
   const inspect = () => Effect.gen(function* () {
     const current = yield* system.readText(config.launchAgentPath)
-    return { status: current === plist && (yield* compiled()) ? "ok" as const : "change" as const, detail: description }
+    return { status: current === (yield* plist) && (yield* compiled()) ? "ok" as const : "change" as const, detail: description }
   })
   return {
     id: "downloads-cleanup", description, inspect,
@@ -57,8 +58,8 @@ export function downloadsCleanup(system: System, config: Configuration["download
         yield* system.writeText(markerPath, fingerprint)
       }
       yield* system.mkdir(dirname(config.logPath))
-      if ((yield* system.readText(config.launchAgentPath)) !== plist) yield* system.writeText(config.launchAgentPath, plist)
-    }),
-    verify: () => verifyObservation("downloads-cleanup", inspect)
+      const desired = yield* plist
+      if ((yield* system.readText(config.launchAgentPath)) !== desired) yield* system.writeText(config.launchAgentPath, desired)
+    })
   }
 }

@@ -1,10 +1,14 @@
 import { join } from "node:path"
 import { Effect } from "effect"
-import type { Resource } from "../runner.ts"
-import { verifyObservation } from "../runner.ts"
+import { absolutePaths } from "../machine.ts"
+import type { Machine } from "../machine.ts"
+import type { Component } from "../runner.ts"
 import type { System } from "../system.ts"
 
-export function developerDirectories(system: System, root: string): Resource {
+export const developerDirectory = ({ home }: Machine) => join(home, "Developer")
+
+export function developerDirectories(system: System, root: string): Component {
+  absolutePaths(root)
   const paths = ["repos", "worktrees", "tries"].map(name => join(root, name))
   const inspect = () => Effect.gen(function* () {
     const missing: string[] = []
@@ -15,7 +19,6 @@ export function developerDirectories(system: System, root: string): Resource {
     id: "developer-directories", description: `Create repos, worktrees, and tries directories in ${root}`, inspect,
     apply: () => Effect.gen(function* () {
       for (const path of paths) yield* system.mkdir(path)
-    }),
-    verify: () => verifyObservation("developer-directories", inspect)
+    })
   }
 }

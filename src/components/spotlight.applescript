@@ -80,13 +80,15 @@ on run folderPaths
       set value of pathField to contents of folderPath
       key code 36
     end tell
-    -- Wait for Go to Folder to close before submitting the open panel.
-    repeat 100 times
-      if my findControl("AXTextField", "PathTextField") is missing value then exit repeat
+    -- The field belongs to the Go to Folder sheet. Poll its known reference
+    -- rather than repeatedly walking the entire picker's accessibility tree.
+    set pathDeadline to (current date) + 20
+    repeat
+      tell application "System Events" to set pathVisible to exists pathField
+      if not pathVisible then exit repeat
+      if (current date) is greater than or equal to pathDeadline then error "Could not resolve folder: " & folderPath
       delay 0.2
     end repeat
-    if my findControl("AXTextField", "PathTextField") is not missing value then error "Could not resolve folder: " & folderPath
-    set chooseButton to my waitForControl("AXButton", "OKButton")
     tell application "System Events" to click chooseButton
 
     -- Only the innermost sheet is searched, so a picker or error still open

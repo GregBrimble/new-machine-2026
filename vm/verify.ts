@@ -5,7 +5,14 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { setTimeout } from "node:timers/promises"
-import { configuration } from "../src/config.ts"
+import { settings as checkoutSettings } from "../src/components/checkout.ts"
+import { developerDirectory } from "../src/components/developer.ts"
+import { settings as downloadSettings } from "../src/components/downloads.ts"
+import { settings as packages } from "../src/components/homebrew.ts"
+import { settings as shellSettings } from "../src/components/shell.ts"
+import { settings as signingSettings } from "../src/components/signing.ts"
+import { settings as spotlightSettings } from "../src/components/spotlight.ts"
+import { settings as vlcSettings } from "../src/components/vlc.ts"
 
 const run = (file: string, args: string[] = [], input?: string) => execFileSync(file, args, { encoding: "utf8", timeout: 60_000, input, stdio: ["pipe", "pipe", "pipe"] }).trim()
 assert.match(run("/usr/sbin/sysctl", ["-n", "hw.model"]), /^VirtualMac/u, "VM-only test")
@@ -15,9 +22,13 @@ assert.ok(stage === "first" || stage === "repeat" || stage === "after-login")
 assert.ok(results)
 const home = homedir()
 const zshDirectory = run("/bin/zsh", ["-c", 'builtin printf "%s" "${ZDOTDIR-$HOME}"'])
-const config = configuration(home, zshDirectory, "shared")
 const brew = "/opt/homebrew/bin/brew"
 const mise = "/opt/homebrew/opt/mise/bin/mise"
+const machine = { home, zshDirectory, profile: "shared" as const, brew, mise }
+const config = {
+  ...shellSettings(machine), ...packages(machine), checkout: checkoutSettings(machine), developerDirectory: developerDirectory(machine),
+  git: { signing: signingSettings(machine) }, vlc: vlcSettings(machine), downloadsCleanup: downloadSettings(machine), spotlightExcludedFolders: spotlightSettings(machine)
+}
 const pin = readFileSync(new URL("../.node-version", import.meta.url), "utf8").trim()
 assert.equal(process.version, `v${pin}`)
 assert.equal(run(brew, ["--prefix", "mise"]), "/opt/homebrew/opt/mise")

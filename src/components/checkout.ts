@@ -1,14 +1,23 @@
-import { dirname } from "node:path"
+import { dirname, join } from "node:path"
 import { Effect } from "effect"
-import type { Configuration } from "../config.ts"
-import type { Resource } from "../runner.ts"
-import { verifyObservation } from "../runner.ts"
+import { absolutePaths } from "../machine.ts"
+import type { Machine } from "../machine.ts"
+import { developerDirectory } from "./developer.ts"
+import type { Component } from "../runner.ts"
 import { BootstrapError, checked } from "../system.ts"
 import type { System } from "../system.ts"
 
+export interface Checkout { directory: string; remote: string }
+export const settings = (machine: Machine): Checkout => ({
+  directory: join(developerDirectory(machine), "repos/github.com/GregBrimble/new-machine-2026"),
+  remote: "https://github.com/GregBrimble/new-machine-2026.git"
+})
+
 const remoteIdentity = (url: string) => url.replace(/^git@github\.com:/u, "https://github.com/").replace(/\/$/u, "").replace(/\.git$/u, "")
 
-export function configurationCheckout(system: System, config: Configuration["checkout"]): Resource {
+export function configurationCheckout(system: System, config: Checkout): Component {
+  absolutePaths(config.directory)
+  if (!config.remote || config.remote.startsWith("-") || /[\r\n\0]/u.test(config.remote)) throw new Error("Checkout remote must be a Git URL or path.")
   const inspect = () => Effect.gen(function* () {
     if (!(yield* system.directory(config.directory))) return { status: "change", detail: `Clone ${config.remote} into ${config.directory}` } as const
     const root = yield* checked(system, { file: "git", args: ["-C", config.directory, "rev-parse", "--show-toplevel"] })
@@ -26,7 +35,6 @@ export function configurationCheckout(system: System, config: Configuration["che
     apply: () => Effect.gen(function* () {
       yield* system.mkdir(dirname(config.directory))
       yield* checked(system, { file: "git", args: ["clone", "--", config.remote, config.directory] })
-    }),
-    verify: () => verifyObservation("configuration-checkout", inspect)
+    })
   }
 }

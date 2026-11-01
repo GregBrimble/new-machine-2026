@@ -25,7 +25,7 @@ function fixture() {
     .replaceAll("/usr/local/bin/brew", join(root, "intel-prefix/bin/brew"))
   const script = join(project, "bootstrap.sh"); writeFileSync(script, source)
   for (const file of ["package.json", "package-lock.json", ".node-version"]) cpSync(join(repo, file), join(project, file))
-  writeFileSync(join(project, "src/main.ts"), "// Loader fixture; resource behavior is tested separately.\n")
+  writeFileSync(join(project, "src/main.ts"), "// Loader fixture; component behavior is tested separately.\n")
   const mise = join(root, "mise-fixture")
   executable(mise, `
 printf 'mise:%s\\n' "$*" >> "$FIXTURE_LOG"

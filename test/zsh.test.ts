@@ -4,7 +4,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { Effect } from "effect"
-import { configuration } from "../src/config.ts"
+import { machine } from "./helpers.ts"
+import { settings } from "../src/components/shell.ts"
 import { liveSystem } from "../src/system.ts"
 import { zshStartupDirectory } from "../src/zsh.ts"
 
@@ -44,7 +45,7 @@ test("zsh resolves a non-exported ZDOTDIR from .zshenv without loading login or 
     }
     const resolved = await f.resolve()
     assert.equal(resolved, directory)
-    const config = configuration(f.home, resolved, "shared")
+    const config = settings(machine(f.home, resolved))
     assert.equal(config.homebrewProfile, join(directory, ".zprofile"))
     assert.equal(config.miseProfile, join(directory, ".zshrc"))
   } finally { f.dispose() }

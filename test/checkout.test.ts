@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { Effect } from "effect"
-import { configurationCheckout } from "../src/resources/checkout.ts"
+import { configurationCheckout } from "../src/components/checkout.ts"
 import { liveSystem } from "../src/system.ts"
 
 test("the configuration checkout clones once and preserves local branches, changes and remotes", async () => {
@@ -18,19 +18,19 @@ test("the configuration checkout clones once and preserves local branches, chang
     writeFileSync(join(source, "config.txt"), "original\n")
     git("-C", source, "add", "config.txt")
     git("-C", source, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", "-c", "commit.gpgsign=false", "commit", "-m", "Initial config")
-    const resource = configurationCheckout(liveSystem(env), { directory, remote: source })
-    assert.equal((await Effect.runPromise(resource.inspect())).status, "change")
-    await Effect.runPromise(resource.apply())
-    await Effect.runPromise(resource.verify())
+    const component = configurationCheckout(liveSystem(env), { directory, remote: source })
+    assert.equal((await Effect.runPromise(component.inspect())).status, "change")
+    await Effect.runPromise(component.apply())
+    assert.equal((await Effect.runPromise(component.inspect())).status, "ok")
     git("-C", directory, "checkout", "-b", "local-edits")
     writeFileSync(join(directory, "config.txt"), "my edits\n")
     const before = git("-C", directory, "status", "--porcelain")
-    assert.equal((await Effect.runPromise(resource.inspect())).status, "ok")
+    assert.equal((await Effect.runPromise(component.inspect())).status, "ok")
     assert.equal(readFileSync(join(directory, "config.txt"), "utf8"), "my edits\n")
     assert.equal(git("-C", directory, "branch", "--show-current"), "local-edits")
     assert.equal(git("-C", directory, "status", "--porcelain"), before)
     git("-C", directory, "remote", "set-url", "origin", join(root, "unrelated"))
-    await assert.rejects(Effect.runPromise(resource.inspect()), /Preserving.*origin/u)
+    await assert.rejects(Effect.runPromise(component.inspect()), /Preserving.*origin/u)
     assert.equal(readFileSync(join(directory, "config.txt"), "utf8"), "my edits\n")
     const inside = configurationCheckout(liveSystem(env), { directory: join(directory, ".git"), remote: source })
     await assert.rejects(Effect.runPromise(inside.inspect()))

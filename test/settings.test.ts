@@ -4,18 +4,18 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { Effect } from "effect"
-import { configuration, validateConfiguration } from "../src/config.ts"
-import { gitSettings } from "../src/resources/git.ts"
-import { vlcSettings } from "../src/resources/vlc.ts"
-import { reconcile } from "../src/runner.ts"
-import type { Resource } from "../src/runner.ts"
+import { machine } from "./helpers.ts"
+import { gitSettings } from "../src/components/git.ts"
+import { vlcSettings, settings as vlcDefaults } from "../src/components/vlc.ts"
+import { runComponents } from "../src/runner.ts"
+import type { Component } from "../src/runner.ts"
 import { checked, liveSystem } from "../src/system.ts"
 import type { Command, System } from "../src/system.ts"
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "new-machine-settings-"))
   const gitPath = join(root, "gitconfig")
-  const config = configuration(root, root, "shared")
+  const config = { vlc: vlcDefaults(machine(root)) }
   config.vlc.configPath = join(root, "VLC preferences/vlcrc")
   const native = liveSystem({ HOME: root, PATH: "/usr/bin:/bin", GIT_CONFIG_GLOBAL: gitPath, GIT_CONFIG_NOSYSTEM: "1" })
   const commands: Command[] = [], writes: string[] = []
@@ -33,7 +33,7 @@ function fixture() {
       return state.ignoreWrites ? Effect.void : native.writeText(path, text)
     }
   }
-  const run = (resource: Resource) => Effect.runPromise(reconcile([resource], "apply", () => {}))
+  const run = (component: Component) => Effect.runPromise(runComponents([component], { mode: "apply", failFast: true }))
   const vlc = () => vlcSettings(system, config.vlc)
   const seed = (text: string) => Effect.runPromise(native.writeText(config.vlc.configPath, text))
   const read = () => readFileSync(config.vlc.configPath, "utf8")
@@ -46,13 +46,13 @@ test("native Git updates only the global setting and a repeat run makes no write
   try {
     const unrelated = "# Keep my settings\n[user]\n\tname = Test Person\n[alias]\n\tst = status\n"
     writeFileSync(f.gitPath, unrelated + "[push]\n\tautoSetupRemote = false\n\tautoSetupRemote = false\n")
-    const resource = gitSettings(f.system, true)
-    await f.run(resource)
+    const component = gitSettings(f.system, true)
+    await f.run(component)
     assert.ok(readFileSync(f.gitPath, "utf8").startsWith(unrelated))
     assert.equal(await Effect.runPromise(checked(f.system, { file: "git", args: ["config", "--global", "--type=bool", "--get", "push.autoSetupRemote"] })), "true")
     const before = readFileSync(f.gitPath, "utf8")
     f.commands.length = 0
-    await f.run(resource)
+    await f.run(component)
     assert.equal(f.commands.some(command => command.args.includes("--replace-all")), false)
     assert.equal(readFileSync(f.gitPath, "utf8"), before)
   } finally { f.dispose() }
@@ -152,11 +152,11 @@ test("VLC verifies the written preferences before reporting success", async () =
 
 test("VLC configuration rejects invalid rates and injected preference lines", () => {
   for (const playbackRate of [0, -1, Infinity, NaN]) {
-    const config = configuration("/Users/test", "/Users/test", "shared")
+    const config = { vlc: vlcDefaults(machine()) }
     config.vlc.playbackRate = playbackRate
-    assert.throws(() => validateConfiguration(config), /playback rate/u)
+    assert.throws(() => vlcSettings(liveSystem({}), config.vlc), /playback rate/u)
   }
-  const config = configuration("/Users/test", "/Users/test", "shared")
+  const config = { vlc: vlcDefaults(machine()) }
   config.vlc.subtitleLanguage = "en,any\nrate=99"
-  assert.throws(() => validateConfiguration(config), /subtitle languages/u)
+  assert.throws(() => vlcSettings(liveSystem({}), config.vlc), /subtitle languages/u)
 })

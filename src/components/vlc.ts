@@ -1,11 +1,18 @@
 import { Effect } from "effect"
-import type { Configuration } from "../config.ts"
-import type { Resource } from "../runner.ts"
-import { verifyObservation } from "../runner.ts"
+import { join } from "node:path"
+import { absolutePaths } from "../machine.ts"
+import type { Machine } from "../machine.ts"
+import type { Component } from "../runner.ts"
 import { BootstrapError } from "../system.ts"
 import type { System } from "../system.ts"
 
-function mergeSettings(text: string, config: Configuration["vlc"]): string {
+export interface Vlc { configPath: string; playbackRate: number; subtitleLanguage: string }
+export const settings = ({ home }: Machine): Vlc => ({
+  configPath: join(home, "Library/Preferences/org.videolan.vlc/vlcrc"), playbackRate: 2.35, subtitleLanguage: "en,any"
+})
+
+
+function mergeSettings(text: string, config: Vlc): string {
   const desired = new Map([["rate", String(config.playbackRate)], ["sub-language", config.subtitleLanguage]])
   // Remove conflicting overrides so VLC's defaults enable subtitles and select by language.
   const automatic = new Map([["spu", 1], ["sub-track", -1], ["sub-track-id", -1]])
@@ -49,7 +56,10 @@ function mergeSettings(text: string, config: Configuration["vlc"]): string {
   return output.join("")
 }
 
-export function vlcSettings(system: System, config: Configuration["vlc"]): Resource {
+export function vlcSettings(system: System, config: Vlc): Component {
+  absolutePaths(config.configPath)
+  if (!Number.isFinite(config.playbackRate) || config.playbackRate <= 0) throw new Error("VLC playback rate must be positive and finite.")
+  if (!/^[a-z]+(?:,[a-z]+)*$/iu.test(config.subtitleLanguage)) throw new Error("VLC subtitle languages must be comma-separated language names or codes.")
   const state = () => Effect.gen(function* () {
     const current = (yield* system.readText(config.configPath)) ?? ""
     return { current, next: mergeSettings(current, config) }
@@ -66,7 +76,6 @@ export function vlcSettings(system: System, config: Configuration["vlc"]): Resou
       if (running.code !== 1) return yield* Effect.fail(new BootstrapError("VLC settings", running.stderr || "Could not check whether VLC is running."))
       const { current, next } = yield* state()
       if (current !== next) yield* system.writeText(config.configPath, next)
-    }),
-    verify: () => verifyObservation("vlc-settings", inspect)
+    })
   }
 }

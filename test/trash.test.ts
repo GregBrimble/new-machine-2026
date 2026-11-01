@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { Effect } from "effect"
-import { trashSettings } from "../src/resources/trash.ts"
-import { reconcile } from "../src/runner.ts"
+import { trashSettings } from "../src/components/trash.ts"
+import { runComponents } from "../src/runner.ts"
 import { liveSystem } from "../src/system.ts"
 import type { Command, System } from "../src/system.ts"
 
@@ -28,7 +28,7 @@ function fixture(value?: string) {
       return { code: 0, stdout: "", stderr: "" }
     })
   }
-  const run = (enabled = true) => Effect.runPromise(reconcile([trashSettings(system, enabled)], "apply", () => {}))
+  const run = (enabled = true) => Effect.runPromise(runComponents([trashSettings(system, enabled)], { mode: "apply", failFast: true }))
   return { state, commands, run }
 }
 

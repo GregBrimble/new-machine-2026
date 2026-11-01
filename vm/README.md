@@ -18,11 +18,13 @@ npm run test:vm -- --attended
 npm run test:vm -- --ca-bundle /path/to/corporate-ca.pem
 ```
 
-The unattended driver requires Bash, Tart, Python 3.11 or newer, and the Swift
-command line tools. `/bin/bash vm/run.sh` works without Node installed on the host.
-It caches a Python virtual environment with the exact versions in
-`vm/requirements.txt` and compiles a small Apple Vision OCR helper. Attended mode
-requires only Bash and Tart. Allow at least **60 GiB free** for the image cache,
+The Effect host driver requires Node and this checkout's npm dependencies, plus
+Tart. Run `npm ci --ignore-scripts` first. Unattended interaction also requires
+Python 3.11+ and Swift command line tools. It caches a Python virtual environment
+with the versions in `vm/requirements.txt` and compiles an Apple Vision OCR helper.
+`vm/driver.ts` owns process scopes, guest status, deadlines, restart and cleanup;
+`vm/ui.py` only handles VNC input and expected permission dialogs. Attended mode
+uses the same Effect lifecycle without the Python UI driver. Allow at least **60 GiB free** for the image cache,
 guest disk, developer tools, and apps; the image download is roughly 25 GB.
 When the selected image is already cached, the driver requires **30 GiB free**
 for the new clone and installations. The default image is pinned by OCI digest;
@@ -115,7 +117,7 @@ This starts the existing service without changing the host's network settings.
 For a fixed OS image, pass a versioned image or OCI digest:
 
 ```sh
-/bin/bash vm/run.sh --image ghcr.io/cirruslabs/macos-tahoe-vanilla@sha256:<digest>
+npm run test:vm -- --image ghcr.io/cirruslabs/macos-tahoe-vanilla@sha256:<digest>
 ```
 
 Pinning the image fixes the starting OS state. Homebrew packages, downloads,

@@ -7,15 +7,15 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { Effect } from "effect"
-import { configuration, validateConfiguration } from "../src/config.ts"
-import { downloadsCleanup } from "../src/resources/downloads.ts"
-import { reconcile } from "../src/runner.ts"
+import { machine } from "./helpers.ts"
+import { downloadsCleanup, settings as downloadsDefaults } from "../src/components/downloads.ts"
+import { runComponents } from "../src/runner.ts"
 import { BootstrapError, liveSystem } from "../src/system.ts"
 import type { Command, System } from "../src/system.ts"
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "new-machine-downloads-"))
-  const config = configuration(join(root, "home & <test>"), root, "shared").downloadsCleanup
+  const config = downloadsDefaults(machine(join(root, "home & <test>")))
   const native = liveSystem(process.env)
   const writes: string[] = []
   const commands: Command[] = []
@@ -23,14 +23,14 @@ function fixture() {
     ...native,
     run: command => {
       commands.push(command)
-      return ["/usr/bin/xcrun", "/bin/mv", `${config.helperPath}.next`].includes(command.file)
+      return ["/usr/bin/plutil", "/usr/bin/xcrun", "/bin/mv", `${config.helperPath}.next`].includes(command.file)
         ? native.run(command)
         : Effect.fail(new BootstrapError("test", `Unexpected installation command: ${command.file}`))
     },
     writeText: (path, text) => { writes.push(path); return native.writeText(path, text) }
   }
   const run = (mode: "apply" | "plan" | "preview" = "apply") =>
-    Effect.runPromise(reconcile([downloadsCleanup(system, config)], mode, () => {}))
+    Effect.runPromise(runComponents([downloadsCleanup(system, config)], { mode, failFast: true }))
   const job = () => {
     const parsed = spawnSync("/usr/bin/plutil", ["-convert", "json", "-o", "-", config.launchAgentPath], { encoding: "utf8" })
     assert.equal(parsed.status, 0, parsed.stderr || parsed.stdout)
@@ -57,13 +57,13 @@ test("Downloads cleanup installs a valid background LaunchAgent, converges, and 
     f.writes.length = 0; f.commands.length = 0
     await f.run()
     assert.deepEqual(f.writes, [])
-    assert.deepEqual(f.commands, [])
+    assert.ok(f.commands.every(command => command.file === "/usr/bin/plutil"))
     f.config.olderThanDays = 45
     f.config.checkIntervalHours = 6
     await f.run()
     assert.equal(f.job().ProgramArguments.filter(arg => arg === "+45d").length, 3)
     assert.equal(f.job().ProgramArguments[2], "21600")
-    assert.deepEqual(f.commands, [])
+    assert.ok(f.commands.every(command => command.file === "/usr/bin/plutil"))
   } finally { f.dispose() }
 })
 
@@ -113,25 +113,25 @@ test("an ineffective LaunchAgent write fails verification", async () => {
     await f.run()
     rmSync(f.config.launchAgentPath)
     const system = { ...f.system, writeText: () => Effect.void }
-    await assert.rejects(Effect.runPromise(reconcile([downloadsCleanup(system, f.config)], "apply", () => {})), /Verification failed/u)
+    await assert.rejects(Effect.runPromise(runComponents([downloadsCleanup(system, f.config)], { mode: "apply", failFast: true })), /Verification failed/u)
   } finally { f.dispose() }
 })
 
 test("Downloads cleanup validates its age and paths", () => {
   for (const olderThanDays of [0, -1, 1.5, Infinity, NaN]) {
-    const config = configuration("/Users/test", "/Users/test", "shared")
+    const config = { downloadsCleanup: downloadsDefaults(machine()) }
     config.downloadsCleanup.olderThanDays = olderThanDays
-    assert.throws(() => validateConfiguration(config), /whole number of days/u)
+    assert.throws(() => downloadsCleanup(liveSystem({}), config.downloadsCleanup), /whole number of days/u)
   }
   for (const directory of ["relative", "/", "/tmp/.."]) {
-    const config = configuration("/Users/test", "/Users/test", "shared")
+    const config = { downloadsCleanup: downloadsDefaults(machine()) }
     config.downloadsCleanup.directory = directory
-    assert.throws(() => validateConfiguration(config), /absolute|filesystem root/u)
+    assert.throws(() => downloadsCleanup(liveSystem({}), config.downloadsCleanup), /absolute|filesystem root/u)
   }
   for (const checkIntervalHours of [0, -1, Infinity, NaN]) {
-    const config = configuration("/Users/test", "/Users/test", "shared")
+    const config = { downloadsCleanup: downloadsDefaults(machine()) }
     config.downloadsCleanup.checkIntervalHours = checkIntervalHours
-    assert.throws(() => validateConfiguration(config), /interval/u)
+    assert.throws(() => downloadsCleanup(liveSystem({}), config.downloadsCleanup), /interval/u)
   }
 })
 
@@ -147,7 +147,7 @@ test("a failed native rebuild preserves the working helper and remains retryable
       return Effect.succeed({ code: 1, stdout: "", stderr: "Compiler unavailable" })
     } }
     for (let run = 0; run < 2; run++) {
-      await assert.rejects(Effect.runPromise(reconcile([downloadsCleanup(system, f.config)], "apply", () => {})), /Compiler unavailable/u)
+      await assert.rejects(Effect.runPromise(runComponents([downloadsCleanup(system, f.config)], { mode: "apply", failFast: true })), /Compiler unavailable/u)
       const help = spawnSync(f.config.helperPath, ["--help"], { encoding: "utf8" })
       assert.equal(help.status, 0, help.stderr)
     }

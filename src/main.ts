@@ -1,9 +1,8 @@
 import { homedir } from "node:os"
 import { isAbsolute } from "node:path"
 import { Effect } from "effect"
-import { configuration, validateConfiguration } from "./config.ts"
 import { options } from "./cli.ts"
-import { resources } from "./resources/index.ts"
+import { components } from "./components/index.ts"
 import { logComponent, runComponents } from "./runner.ts"
 import { liveSystem } from "./system.ts"
 import { zshStartupDirectory } from "./zsh.ts"
@@ -18,11 +17,10 @@ async function main() {
   if (!mise || !isAbsolute(mise) || !brew || !isAbsolute(brew)) throw new Error("Run through bootstrap.sh so Homebrew, mise, and Node.js are prepared.")
   const system = liveSystem(process.env, { interactiveOutput: json ? "stderr" : "inherit" })
   const zshDirectory = await Effect.runPromise(zshStartupDirectory(system))
-  const config = configuration(homedir(), zshDirectory, profile)
-  validateConfiguration(config)
+  const machine = { home: homedir(), zshDirectory, profile, brew, mise }
   if (json) console.log(JSON.stringify({ type: "start", version: 1, profile, mode }))
   else console.log(`Profile: ${profile}; mode: ${mode}`)
-  const states = await Effect.runPromise(runComponents(resources(system, config, { brew, mise }), {
+  const states = await Effect.runPromise(runComponents(components(system, machine), {
     ...settings,
     onEvent: event => json ? console.log(JSON.stringify(event)) : logComponent(event, mode, console.log)
   }))

@@ -1,12 +1,25 @@
-import { dirname } from "node:path"
+import { dirname, join } from "node:path"
 import { Effect } from "effect"
-import type { Configuration } from "../config.ts"
-import type { Resource } from "../runner.ts"
-import { verifyObservation } from "../runner.ts"
+import { absolutePaths } from "../machine.ts"
+import type { Machine } from "../machine.ts"
+import type { Component } from "../runner.ts"
 import { BootstrapError, checked } from "../system.ts"
 import type { System } from "../system.ts"
 
-type Signing = Configuration["git"]["signing"]
+export interface Signing { keyPath: string; allowedSignersPath: string; programPath: string }
+export const settings = ({ home }: Machine): Signing => ({
+  keyPath: join(home, ".ssh/id_ed25519_signing"),
+  allowedSignersPath: join(home, ".ssh/git_allowed_signers"),
+  programPath: join(home, "Library/Application Support/new-machine-2026/git-ssh-sign")
+})
+
+function validate(config: Signing) {
+  const paths = Object.values(config)
+  absolutePaths(...paths)
+  if (paths.some(path => /[\r\n\0]/u.test(path)) || new Set([...paths, `${config.keyPath}.pub`]).size !== 4) {
+    throw new Error("Git signing paths must be distinct and contain no line breaks or NULs.")
+  }
+}
 const quote = (text: string) => `'${text.replaceAll("'", "'\\''")}'`
 
 function publicKey(system: System, path: string) {
@@ -35,7 +48,8 @@ function keyState(system: System, path: string) {
 
 const usable = (system: System, path: string) => system.run({ file: "/usr/bin/ssh-add", args: ["-T", `${path}.pub`] })
 
-export function gitSigningKey(system: System, config: Signing): Resource {
+export function gitSigningKey(system: System, config: Signing): Component {
+  validate(config)
   const inspect = () => Effect.gen(function* () {
     const key = yield* keyState(system, config.keyPath)
     if (!key) return { status: "change", detail: `Create ${config.keyPath}; choose a passphrase in the terminal, then save it in macOS Keychain` } as const
@@ -60,8 +74,7 @@ export function gitSigningKey(system: System, config: Signing): Resource {
         })
       }
       yield* checked(system, { file: "/usr/bin/ssh-add", args: ["--apple-use-keychain", config.keyPath], interactive: true })
-    }),
-    verify: () => verifyObservation("git-signing-key", inspect)
+    })
   }
 }
 
@@ -78,7 +91,8 @@ exec /usr/bin/ssh-keygen "$@"
 `
 }
 
-export function gitSigning(system: System, config: Signing): Resource {
+export function gitSigning(system: System, config: Signing): Component {
+  validate(config)
   const settings = [
     ["gpg.format", "ssh"],
     ["user.signingkey", `${config.keyPath}.pub`],
@@ -119,7 +133,6 @@ export function gitSigning(system: System, config: Signing): Resource {
       if ((yield* system.readText(config.programPath)) !== program) yield* system.writeText(config.programPath, program)
       yield* checked(system, { file: "/bin/chmod", args: ["700", config.programPath] })
       for (const [key, value] of settings) yield* checked(system, { file: "git", args: ["config", "--global", "--replace-all", key, value] })
-    }),
-    verify: () => verifyObservation("git-signing", inspect)
+    })
   }
 }

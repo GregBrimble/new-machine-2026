@@ -107,11 +107,10 @@ def main():
     parser.add_argument("--endpoint", required=True)
     parser.add_argument("--ocr", required=True)
     parser.add_argument("--results", required=True)
-    parser.add_argument("--stage", choices=("first", "after-login"), required=True)
     args = parser.parse_args()
     ui = UI(args.endpoint, args.ocr, args.results)
     try:
-        drive(ui, args.stage)
+        drive(ui)
     except Exception:
         if (ui.results / "ui-latest.png").exists():
             ui.remember("failure")
@@ -120,26 +119,12 @@ def main():
         ui.close()
 
 
-def drive(ui, stage):
-    deadline = time.monotonic() + 5400
-    started = stage == "after-login"
-    startup_deadline = time.monotonic() + 600
+def drive(ui):
     toggled = False
     authenticated = False
     desktop_ready = False
-    while time.monotonic() < deadline:
-        status_file = ui.results / "status"
-        status = status_file.read_text().strip() if status_file.exists() else ""
-        if status == "failed":
-            ui.capture()
-            raise RuntimeError("Guest test failed; inspect guest logs and ui-latest.png")
-        if status == ("reboot-required" if stage == "first" else "passed"):
-            return
-        if not started and (ui.results / "guest-first.log").exists():
-            started = True
-            print("Started the guest test in Terminal", flush=True)
-        if not started and time.monotonic() > startup_deadline:
-            raise TimeoutError("The guest test did not start in Terminal within ten minutes")
+    # The Effect host owns test status, deadlines, and this process's lifetime.
+    while True:
         ui.capture()
         text = normalized(" ".join(row["text"] for row in ui.rows))
         if not desktop_ready and ui.rows:
@@ -169,7 +154,6 @@ def drive(ui, stage):
             ui.key("enter")
             authenticated = True
         time.sleep(1)
-    raise TimeoutError("VM UI test timed out after 90 minutes")
 
 
 if __name__ == "__main__":

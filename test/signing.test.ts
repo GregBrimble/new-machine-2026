@@ -5,15 +5,15 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { Effect } from "effect"
-import { configuration, validateConfiguration } from "../src/config.ts"
-import { gitSigning, gitSigningKey, signingProgram } from "../src/resources/signing.ts"
+import { machine } from "./helpers.ts"
+import { gitSigning, gitSigningKey, signingProgram, settings as signingDefaults } from "../src/components/signing.ts"
 import { runComponents } from "../src/runner.ts"
 import { checked, liveSystem } from "../src/system.ts"
 import type { Command, System } from "../src/system.ts"
 
 async function fixture() {
   const root = mkdtempSync(join(tmpdir(), "new-machine signing '"))
-  const config = configuration(root, root, "shared").git.signing
+  const config = signingDefaults(machine(root))
   const env = { HOME: root, PATH: "/usr/bin:/bin", GIT_CONFIG_GLOBAL: join(root, ".gitconfig"), GIT_CONFIG_NOSYSTEM: "1", SSH_AUTH_SOCK: join(root, "agent") }
   const agent = execFileSync("/usr/bin/ssh-agent", ["-s", "-a", env.SSH_AUTH_SOCK], { encoding: "utf8", env })
   const pid = Number(/SSH_AGENT_PID=(\d+);/u.exec(agent)![1])
@@ -141,11 +141,11 @@ test("an incomplete or invalid key pair is preserved and unrelated local trust e
 
 test("signing configuration rejects path collisions and injected lines", () => {
   for (const path of ["relative", "/tmp/bad\npath", "/tmp/bad\0path"]) {
-    const config = configuration("/Users/test", "/Users/test", "shared")
+    const config = { git: { signing: signingDefaults(machine()) } }
     config.git.signing.keyPath = path
-    assert.throws(() => validateConfiguration(config), /paths/u)
+    assert.throws(() => gitSigningKey(liveSystem({}), config.git.signing), /paths/u)
   }
-  const config = configuration("/Users/test", "/Users/test", "shared")
+  const config = { git: { signing: signingDefaults(machine()) } }
   config.git.signing.allowedSignersPath = `${config.git.signing.keyPath}.pub`
-  assert.throws(() => validateConfiguration(config), /distinct/u)
+  assert.throws(() => gitSigningKey(liveSystem({}), config.git.signing), /distinct/u)
 })

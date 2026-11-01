@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util"
-import type { Profile } from "./config.ts"
+import type { Profile } from "./machine.ts"
 import type { Mode } from "./runner.ts"
 
 export function options(args: ReadonlyArray<string>) {
