@@ -17,6 +17,10 @@ Bundle can adopt matching manually installed apps. A manually deleted app can
 require `brew reinstall --cask <name>` to repair Homebrew's installation record.
 Apps use Homebrew's default installation location.
 
+The shared formula list includes [age](https://age-encryption.org/) for encrypting
+private setup files. Decrypting them on a new machine requires a separately held
+passphrase or identity key.
+
 ## Containers
 
 The shared formula list installs [Apple's `container`](https://github.com/apple/container)
