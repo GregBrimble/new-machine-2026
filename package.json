@@ -12,7 +12,8 @@
     "test:vm": "node vm/run.ts"
   },
   "dependencies": {
-    "effect": "4.1.1"
+    "effect": "4.1.1",
+    "ini-api": "2.0.2"
   },
   "devDependencies": {
     "@types/node": "26.6.6",

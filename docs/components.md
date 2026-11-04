@@ -135,7 +135,7 @@ and the Files & Folders permissions in System Settings.
 The Git component sets global `push.autoSetupRemote` while preserving other
 settings and identities. Repository-specific Git settings can override globals.
 
-The VLC component merges playback rate and subtitle language into
+The VLC component uses [ini-api](https://github.com/matortheeternal/ini-api) to edit playback rate and subtitle language in
 `~/Library/Preferences/org.videolan.vlc/vlcrc`, preserving unrelated sections,
 comments and preferences. It removes conflicting subtitle-disable and numbered-track
 overrides so language selection can work. `en,any` prefers English and then any

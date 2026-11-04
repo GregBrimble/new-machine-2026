@@ -93,6 +93,58 @@ test("VLC changes preserve the BOM, CRLF, comments, and unrelated sections and k
   } finally { f.dispose() }
 })
 
+test("VLC edits preserve literal hashes, semicolons, equals signs, quotes, and backslashes", async () => {
+  const f = fixture()
+  try {
+    const unrelated = String.raw`# VLC values are literal, not quoted INI strings.
+http-referrer=https://example.com/watch?a=b#part;two
+sub-file=/Volumes/Media/An episode [1]/English=SDH.srt
+snapshot-path=C:\Users\Someone\Pictures
+meta-title="An episode"; part #2
+`
+    await f.seed(`[core] # Input\n${unrelated}rate=1\nsub-language=fr\n`)
+    await f.run(f.vlc())
+    assert.equal(f.read(), `[core] # Input\n${unrelated}rate=2.35\nsub-language=en,any\n`)
+    await f.run(f.vlc())
+    assert.equal(f.writes.length, 1)
+  } finally { f.dispose() }
+})
+
+test("VLC writes managed values without INI quotes or inline comments", async () => {
+  const f = fixture()
+  try {
+    await f.seed('[core]\nrate="2.35"\nsub-language=en,any#literal-suffix\n')
+    await f.run(f.vlc())
+    assert.equal(f.read(), "[core]\nrate=2.35\nsub-language=en,any\n")
+    await f.run(f.vlc())
+    assert.equal(f.writes.length, 1)
+  } finally { f.dispose() }
+})
+
+test("VLC replaces INI null and Boolean tokens with the requested values", async () => {
+  for (const value of ["null", "false"]) {
+    const f = fixture()
+    try {
+      await f.seed(`[core]\nrate=${value}\nsub-language=${value}\n`)
+      await f.run(f.vlc())
+      assert.equal(f.read(), "[core]\nrate=2.35\nsub-language=en,any\n")
+      await f.run(f.vlc())
+      assert.equal(f.writes.length, 1)
+    } finally { f.dispose() }
+  }
+})
+
+test("VLC inserts missing settings before trailing blank lines using CRLF", async () => {
+  const f = fixture()
+  try {
+    await f.seed("\uFEFF[core] # Input\r\n#rate=1.000000\r\n\r\n[macosx] # Interface\r\nmacosx-interfacestyle=1")
+    await f.run(f.vlc())
+    assert.equal(f.read(), "\uFEFF[core] # Input\r\n#rate=1.000000\r\nrate=2.35\r\nsub-language=en,any\r\n\r\n[macosx] # Interface\r\nmacosx-interfacestyle=1")
+    await f.run(f.vlc())
+    assert.equal(f.writes.length, 1)
+  } finally { f.dispose() }
+})
+
 test("VLC adds a core section without changing an unrelated unterminated value", async () => {
   const f = fixture()
   try {
