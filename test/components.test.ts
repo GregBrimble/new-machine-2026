@@ -9,7 +9,7 @@ test("every profile assembles a valid component graph without querying the machi
   for (const profile of ["shared", "personal", "cloudflare"] as const) {
     const catalog = components(fakeSystem(), { ...machine(), profile })
     const states = await Effect.runPromise(runComponents(catalog, { mode: "preview" }))
-    assert.equal(states.length, 15)
+    assert.equal(states.length, 16)
     assert.ok(states.every(state => state.phase === "done" && state.status === "pending"))
     assert.ok(states.find(state => state.id === "git-signing")!.dependencies.includes("git-signing-key"))
     assert.ok(states.find(state => state.id === "spotlight")!.interaction.includes("accessibility"))

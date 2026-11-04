@@ -8,19 +8,24 @@ Downloads access. Normal `npm test` does not start a VM or install software.
 Install [Tart](https://tart.run/quick-start/) on the host, then run:
 
 ```sh
-brew install openai/tools/tart
+brew install openai/tools/tart age
 npm run test:vm
 # Test uncommitted checkout contents instead of the public curl entry point:
 npm run test:vm -- --local
 # Operate the guest yourself for debugging:
 npm run test:vm -- --attended
+# For headless runs, supply an already decrypted private cask:
+npm run test:vm -- --local --private-cask /path/to/rex.rb
 # Behind a TLS-inspecting proxy, provide its public CA certificates:
 npm run test:vm -- --ca-bundle /path/to/corporate-ca.pem
 ```
 
 The Effect host driver requires Node and this checkout's npm dependencies, plus
-Tart. Run `npm ci --ignore-scripts` first. Unattended interaction also requires
-Python 3.11+ and Swift command line tools. It caches a Python virtual environment
+Tart and age. Run `npm ci --ignore-scripts` first. The driver asks age to decrypt
+`private/rex.rb.age` in the host terminal before creating the VM; the guest then
+installs Rex from that cask without receiving the passphrase. `--private-cask`
+uses an already decrypted local file instead and avoids that prompt.
+Unattended interaction also requires Python 3.11+ and Swift command line tools. It caches a Python virtual environment
 with the versions in `vm/requirements.txt` and compiles an Apple Vision OCR helper.
 `vm/driver.ts` owns process scopes, guest status, deadlines, restart and cleanup;
 `vm/ui.py` only handles VNC input and expected permission dialogs. Attended mode
@@ -87,9 +92,11 @@ Logs, UI screenshots, Spotlight table results, the checkout commit/diff, and a
 snapshot hash are saved in the printed temporary artifacts directory. Published mode tests the moving public
 `main` entry point against this checkout's expectations; synchronize the checkout
 with `main` first. Local mode snapshots current source, including uncommitted
-changes, and runs `bootstrap.sh` from that snapshot. No host home directory,
-credentials, or SSH agent are shared. Test source is mounted read-only; only the
-artifacts directory is writable by the guest.
+changes, and runs `bootstrap.sh` from that snapshot. The decrypted private Rex cask
+is copied into the read-only input share with owner-only permissions; artifacts
+and the retained guest can contain its private installer URL. Keep these local.
+The host's home directory, age passphrase and SSH agent are not shared. Test source
+is mounted read-only; only the results directory is writable by the guest.
 With `--ca-bundle`, only the specified PEM certificate file is copied into that
 read-only input share; files containing private keys are rejected. The guest
 combines it with macOS's public roots and configures curl, Git, Ruby/OpenSSL,

@@ -9,7 +9,8 @@
     "start": "node src/main.ts",
     "check": "tsc",
     "test": "node --test test/*.test.ts",
-    "test:vm": "node vm/run.ts"
+    "test:vm": "node vm/run.ts",
+    "private:encrypt": "bash scripts/encrypt-private.sh"
   },
   "dependencies": {
     "effect": "4.1.1",

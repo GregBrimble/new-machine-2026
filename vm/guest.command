@@ -60,6 +60,12 @@ fi
 # The disposable image has passwordless sudo; Homebrew needs no confirmation.
 export NONINTERACTIVE=1
 
+# Seed only the decrypted installer, keeping the host's age passphrase out of the VM.
+private_directory="$HOME/Library/Application Support/new-machine-2026/private"
+if [[ "$stage" == first ]]; then
+  (umask 077; mkdir -p "$private_directory"; cp "$input/private-rex.rb" "$private_directory/rex.rb")
+fi
+
 cd "$workspace"
 read -r node_version < .node-version
 brew=/opt/homebrew/bin/brew

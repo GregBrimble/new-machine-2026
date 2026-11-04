@@ -68,6 +68,10 @@ else touch "$FIXTURE_ROOT/ui-first"; echo reboot-required > "$output/status"; fi
 trap 'exit 0' TERM
 while :; do sleep 0.1; done
 `)
+  executable("age", `
+[[ "$1" == --decrypt && "$2" == */private/rex.rb.age ]] || exit 97
+printf '%s\\n' 'cask "rex" do' 'end'
+`)
   executable("ssh", 'printf "ssh %s\\n" "$*" >> "$FIXTURE_LOG"')
   executable("xcrun", 'touch "${@: -1}"')
   const env = (extra: Record<string, string>) => ({ ...process.env, PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin`, TMPDIR: root,
@@ -185,6 +189,19 @@ test("unreadable, invalid, and private-key CA inputs fail before starting a VM",
   } finally { f.dispose() }
 })
 
+
+test("an explicitly supplied private cask is copied without decrypting on the host", () => {
+  const f = fixture()
+  try {
+    const cask = join(f.root, "rex.rb"), contents = 'cask "rex" do\nend\n'
+    writeFileSync(cask, contents, { mode: 0o600 })
+    const result = f.run({}, ["--local", "--attended", "--private-cask", cask])
+    assert.equal(result.status, 0, result.stderr)
+    const results = /Results: (.+)/u.exec(result.stdout)![1]
+    assert.equal(readFileSync(join(results, "../input/private-rex.rb"), "utf8"), contents)
+    assert.equal(result.stdout.includes(contents), false)
+  } finally { f.dispose() }
+})
 
 test("unattended VM driver connects its UI controller for both boots", () => {
   const f = fixture()

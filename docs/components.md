@@ -18,8 +18,51 @@ require `brew reinstall --cask <name>` to repair Homebrew's installation record.
 Apps use Homebrew's default installation location.
 
 The shared formula list includes [age](https://age-encryption.org/) for encrypting
-private setup files. Decrypting them on a new machine requires a separately held
-passphrase or identity key.
+private setup files.
+
+## Private setup and Rex
+
+Rex replaces Ghostty in the desired setup. Its Homebrew cask lives in
+`private/rex.rb.age`, encrypted using age's native passphrase mode. The public
+repository contains ciphertext; the download URL and the passphrase stay out of
+tracked source. Store the passphrase separately, for example in your phone's
+password manager, with a recovery copy.
+
+When Rex is missing, its component decrypts the cask into a temporary file with
+owner-only permissions. age prompts directly in the terminal, including when the
+initializer is launched through `curl | bash`. A cancelled or incorrect passphrase
+stops installation and removes staging. Only successful decryption is moved into
+the local, unversioned `gregbrimble/new-machine-private` Homebrew tap. The component
+trusts that specific cask and installs it using Homebrew. The cask uses a moving
+preview release and Rex's own updater. Already installed Rex needs no decryption
+on reruns or status checks.
+
+Homebrew retains the decrypted cask and installer URL locally in its tap and
+installation metadata. This protects what is published to Git, rather than hiding
+the installer from your own Mac. Removing Ghostty from the desired list leaves any
+existing Ghostty installation in place.
+
+To edit the private cask from a checkout:
+
+```sh
+umask 077
+mkdir -p .private
+age --decrypt --output .private/rex.rb private/rex.rb.age
+# Edit .private/rex.rb, then encrypt it again:
+npm run private:encrypt -- .private/rex.rb private/rex.rb.age
+```
+
+`.private/` is Git-ignored. The encryption helper asks age to prompt for and confirm
+a passphrase, writes armored ciphertext, and replaces the previous encrypted file
+only after encryption succeeds. Pressing Enter at age's encryption prompt generates
+a passphrase for you; save it before closing the terminal. Deleting the local
+plaintext after editing is optional. A passphrase change does not protect older
+ciphertext in Git history if its old passphrase becomes known.
+
+For unattended VM tests, the component can read an explicitly supplied plaintext
+cask at `~/Library/Application Support/new-machine-2026/private/rex.rb` instead.
+The VM driver prepares this input on the host; it never sends the age passphrase
+into the VM. See the [VM guide](../vm/README.md).
 
 ## Containers
 

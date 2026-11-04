@@ -16,7 +16,8 @@ curl --fail --silent --show-error --location \
 
 Append `--profile personal` or `--profile cloudflare` after `--` as appropriate.
 Both currently share the same settings. Homebrew can prompt for your administrator
-password and Command Line Tools. Signing asks for a passphrase; macOS settings
+password and Command Line Tools. Rex asks for the private configuration’s age
+passphrase on first install. Signing asks for its own passphrase; macOS settings
 can prompt for Automation and Accessibility permissions.
 
 From an existing checkout:
@@ -43,6 +44,7 @@ directory, selected profile, and launcher-provided Homebrew/mise executables.
 | --- | --- |
 | Appearance | [appearance.ts](src/components/appearance.ts) |
 | Packages and personal/Cloudflare package additions | [homebrew.ts](src/components/homebrew.ts) |
+| Rex and its encrypted installer | [rex.ts](src/components/rex.ts), [private setup](docs/components.md#private-setup-and-rex) |
 | Homebrew/mise activation and zsh completions | [shell.ts](src/components/shell.ts) |
 | Developer layout | [developer.ts](src/components/developer.ts) |
 | This repository's persistent checkout | [checkout.ts](src/components/checkout.ts) |

@@ -20,7 +20,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check script syntax
         run: |
-          for script in bootstrap.sh vm/run.sh vm/guest.command; do
+          for script in bootstrap.sh vm/run.sh vm/guest.command scripts/encrypt-private.sh; do
             /bin/bash -n "$script"
           done
           /usr/bin/osacompile -o "$RUNNER_TEMP/spotlight.scpt" src/components/spotlight.applescript

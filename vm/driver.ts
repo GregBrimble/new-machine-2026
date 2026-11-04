@@ -15,10 +15,10 @@ const stageTimeout = 90 * 60_000
 export function options(args: string[]) {
   const { values } = parseArgs({ args, options: {
     local: { type: "boolean" }, attended: { type: "boolean" }, image: { type: "string", default: defaultImage },
-    "ca-bundle": { type: "string" }, help: { type: "boolean", short: "h" }
+    "ca-bundle": { type: "string" }, "private-cask": { type: "string" }, help: { type: "boolean", short: "h" }
   } })
-  if (!values.image || values["ca-bundle"] === "") throw new Error("--image and --ca-bundle need a value")
-  return { mode: values.local ? "local" : "published", image: values.image, attended: values.attended ?? false, caBundle: values["ca-bundle"], help: values.help }
+  if (!values.image || values["ca-bundle"] === "" || values["private-cask"] === "") throw new Error("--image, --ca-bundle and --private-cask need a value")
+  return { mode: values.local ? "local" : "published", image: values.image, attended: values.attended ?? false, caBundle: values["ca-bundle"], privateCask: values["private-cask"], help: values.help }
 }
 
 // One wait policy owns stage deadlines and checks process liveness on every poll.
@@ -92,6 +92,12 @@ export function runVM(settings: ReturnType<typeof options>, env = process.env) {
     }).pipe(Effect.orDie))
     yield* processResource("/usr/bin/caffeinate", ["-i", "-w", String(process.pid)], join(results, "caffeinate.log"))
     if (settings.caBundle) copyFileSync(settings.caBundle, join(input, "network-ca.pem"))
+    // Decrypt on the host so its passphrase never enters the guest or VNC input.
+    const privateCask = settings.privateCask
+      ? yield* system.readText(settings.privateCask)
+      : yield* run("age", ["--decrypt", join(repo, "private/rex.rb.age")])
+    if (!privateCask) return yield* Effect.fail(new BootstrapError("VM test", "Private Rex cask must be readable and nonempty."))
+    writeFileSync(join(input, "private-rex.rb"), privateCask, { mode: 0o600 })
     let python = ""
     if (!settings.attended) {
       yield* run("python3", ["-c", "import sys; sys.exit(sys.version_info < (3, 11))"])
@@ -104,7 +110,7 @@ export function runVM(settings: ReturnType<typeof options>, env = process.env) {
       yield* run(python, ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", "-r", join(repo, "vm/requirements.txt")])
       yield* run("xcrun", ["swiftc", "-module-cache-path", join(cache, "swift-modules"), join(repo, "vm/ocr.swift"), "-o", join(artifacts, "ocr")])
     }
-    const snapshotFiles = ["bootstrap.sh", "package.json", "package-lock.json", ".node-version", "src", "vm"]
+    const snapshotFiles = ["bootstrap.sh", "package.json", "package-lock.json", ".node-version", "src", "vm", "scripts", "private"]
     yield* run("tar", ["-czf", join(input, "source.tar.gz"), "-C", repo, ...snapshotFiles])
     copyFileSync(join(repo, "vm/guest.command"), join(input, "start.command")); chmodSync(join(input, "start.command"), 0o755)
     writeFileSync(join(input, "mode"), `${settings.mode}\n`)

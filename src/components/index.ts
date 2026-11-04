@@ -7,6 +7,7 @@ import * as developer from "./developer.ts"
 import * as downloads from "./downloads.ts"
 import * as git from "./git.ts"
 import * as homebrew from "./homebrew.ts"
+import * as rex from "./rex.ts"
 import * as shell from "./shell.ts"
 import * as signing from "./signing.ts"
 import * as spotlight from "./spotlight.ts"
@@ -28,6 +29,7 @@ export function components(system: System, machine: Machine): ReadonlyArray<Comp
     component(signing.gitSigningKey(system, signing.settings(machine)), ["homebrew"], ["terminal"]),
     component(signing.gitSigning(system, signing.settings(machine)), ["git-signing-key"]),
     component(homebrew.homebrewBundle(system, packages, machine.brew), ["homebrew"], ["terminal"]),
+    component(rex.rex(system, rex.settings(machine), machine.brew), ["homebrew-bundle"], ["terminal"]),
     component(shell.zshCompletions(system, paths.miseProfile, machine.mise, machine.brew, packages.formulae.includes("zoxide")), ["mise", "homebrew-bundle"]),
     component(vlc.vlcSettings(system, vlc.settings(machine)), ["homebrew-bundle"]),
     component(downloads.downloadsCleanup(system, downloads.settings(machine)), ["homebrew"]),

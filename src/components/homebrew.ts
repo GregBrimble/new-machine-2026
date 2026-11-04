@@ -7,7 +7,7 @@ import type { System } from "../system.ts"
 export interface Packages { formulae: ReadonlyArray<string>; casks: ReadonlyArray<string> }
 
 export function settings(machine: Machine): Packages {
-  const shared = { formulae: ["age", "container", "zoxide"], casks: ["ghostty", "spotify", "vlc", "google-chrome"] }
+  const shared = { formulae: ["age", "container", "zoxide"], casks: ["spotify", "vlc", "google-chrome"] }
   const personal: Packages = { formulae: [], casks: [] }
   const cloudflare: Packages = { formulae: [], casks: [] }
   const extra = machine.profile === "personal" ? personal : machine.profile === "cloudflare" ? cloudflare : undefined

@@ -65,7 +65,7 @@ run(brew, ["bundle", "check", "--no-upgrade", "--file=-"],
 assert.ok(run(join(run(brew, ["--prefix", "container"]), "bin/container"), ["--version"]), "Apple container CLI runs")
 assert.equal(run("/usr/bin/git", ["-C", config.checkout.directory, "rev-parse", "--show-toplevel"]), config.checkout.directory)
 assert.equal(run("/usr/bin/git", ["-C", config.checkout.directory, "config", "--get", "remote.origin.url"]), config.checkout.remote)
-for (const app of ["Ghostty", "Spotify", "VLC", "Google Chrome"]) {
+for (const app of ["Rex Beta", "Spotify", "VLC", "Google Chrome"]) {
   assert.ok(statSync(`/Applications/${app}.app/Contents/Info.plist`).isFile(), `${app} is installed`)
 }
 const vlc = readFileSync(config.vlc.configPath, "utf8")
